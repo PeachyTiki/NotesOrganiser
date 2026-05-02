@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --accent: #E8210A;
+    --accent-rgb: 232, 33, 10;
+    --accent-dark: #B91C1C;
+    --accent-dark-rgb: 185, 28, 28;
+    --accent-light: #FFECE9;
+    --accent-light-rgb: 255, 236, 233;
+    --accent-muted: #FF6B6B;
+    --accent-muted-rgb: 255, 107, 107;
+  }
+
+  .dark {
+    --accent-light: rgba(var(--accent-rgb), 0.15);
+    --accent-light-rgb: var(--accent-rgb);
+  }
+
+  body {
+    @apply font-sans antialiased;
+  }
+  * {
+    @apply box-border;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-accent text-white px-4 py-2 rounded-lg font-medium hover:bg-accent-dark transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150;
+  }
+  .btn-ghost {
+    @apply text-gray-600 dark:text-gray-400 px-3 py-2 rounded-lg font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150;
+  }
+  .input {
+    @apply w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder-gray-400 dark:placeholder-gray-500 text-sm;
+  }
+  .label {
+    @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1;
+  }
+  .card {
+    @apply bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm;
+  }
+  .section-title {
+    @apply text-lg font-semibold text-gray-900 dark:text-gray-100;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-gray-600 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400 dark:bg-gray-500;
+}
+
+/* Note export canvas */
+.note-export-canvas {
+  font-family: 'Inter', sans-serif;
+}
