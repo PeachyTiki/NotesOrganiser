@@ -316,6 +316,12 @@ export default function NoteExportCanvas({ note, template, t }) {
   const dateAlign = dateConfig?.alignment || 'right'
   const logoPos = logo?.position || 'top-left'
 
+  const d = note.displayOptions || {}
+  const showParticipants = d.showParticipants !== false
+  const showRoles = d.showRoles !== false
+  const showFirms = d.showFirms !== false
+  const showEventType = d.showEventType !== false
+
   const activeParticipants = (note.participants || []).filter((p) => p.enabled !== false && p.name)
   const sections = note.sections || (note.content ? [{ id: '0', type: 'text', label: '', content: note.content }] : [])
 
@@ -342,9 +348,9 @@ export default function NoteExportCanvas({ note, template, t }) {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: 20, fontWeight: 700, color: '#0F172A' }}>{note.title}</div>
-            {(note.customer || note.eventType) && (
+            {(note.customer || (showEventType && note.eventType)) && (
               <div style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>
-                {[note.customer, note.eventType].filter(Boolean).join(' · ')}
+                {[note.customer, showEventType ? note.eventType : null].filter(Boolean).join(' · ')}
               </div>
             )}
             {note.team && <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 1 }}>{note.team}</div>}
@@ -358,7 +364,7 @@ export default function NoteExportCanvas({ note, template, t }) {
       </div>
 
       {/* Participants */}
-      {activeParticipants.length > 0 && (
+      {showParticipants && activeParticipants.length > 0 && (
         <div style={{ padding: '10px 24px', borderBottom: '1px solid #E2E8F0' }}>
           <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#94A3B8', marginBottom: 7 }}>
             {tFn('participants')}
@@ -367,8 +373,8 @@ export default function NoteExportCanvas({ note, template, t }) {
             {activeParticipants.map((p) => (
               <div key={p.id} style={{ fontSize: 12, color: '#374151', backgroundColor: '#F1F5F9', borderRadius: 4, padding: '3px 10px' }}>
                 <strong>{p.name}</strong>
-                {p.role && <span style={{ color: '#64748B' }}> · {p.role}</span>}
-                {p.firm && <span style={{ color: '#94A3B8' }}> ({p.firm})</span>}
+                {showRoles && p.role && <span style={{ color: '#64748B' }}> · {p.role}</span>}
+                {showFirms && p.firm && <span style={{ color: '#94A3B8' }}> ({p.firm})</span>}
               </div>
             ))}
           </div>

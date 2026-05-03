@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { ArrowLeft, Save, Download, RefreshCw, Globe, Plus, Trash2, Eye, EyeOff, Clock, ChevronRight, ChevronDown, CheckSquare, MessageSquare, PanelLeftClose, PanelLeftOpen, LayoutTemplate, X } from 'lucide-react'
+import { ArrowLeft, Save, Download, RefreshCw, Globe, Plus, Trash2, Eye, EyeOff, Clock, ChevronRight, ChevronDown, CheckSquare, MessageSquare, LayoutTemplate, X } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import html2canvas from 'html2canvas'
 import { useApp } from '../../context/AppContext'
@@ -95,6 +95,7 @@ function emptyNote(recurringMeeting, settings) {
     participants: buildParticipants(recurringMeeting, settings),
     templateId: recurringMeeting?.templateId || '',
     sections: [{ id: uuid(), type: 'text', label: '', content: '' }],
+    displayOptions: { showParticipants: true, showRoles: true, showFirms: true, showEventType: true },
     createdAt: new Date().toISOString(),
   }
 }
@@ -130,6 +131,8 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
   const handleSaveRef = useRef(null)
 
   const set = (key, value) => setNote((n) => ({ ...n, [key]: value }))
+  const setDisplayOption = (key, val) =>
+    setNote((n) => ({ ...n, displayOptions: { showParticipants: true, showRoles: true, showFirms: true, showEventType: true, ...(n.displayOptions || {}), [key]: val } }))
   const exportT = makeT(note.language)
   const resolvedTemplate = templates.find((tpl) => tpl.id === note.templateId) || null
   const isEditingExisting = !!existingNote
@@ -289,13 +292,6 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            className="btn-ghost text-sm flex items-center gap-1.5"
-            onClick={() => setPreviewOpen((v) => !v)}
-            title={previewOpen ? 'Hide preview' : 'Show preview'}
-          >
-            {previewOpen ? <><EyeOff size={14} /> Hide Preview</> : <><Eye size={14} /> Show Preview</>}
-          </button>
           <div className="flex items-center gap-2 flex-wrap">
             {lastAutoSave && (
               <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1 whitespace-nowrap">
@@ -336,34 +332,38 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
         </div>
       </div>
 
-      {/* Floating panel controls */}
-      {/* Collapse form button — visible when form is open */}
-      {!formCollapsed && previewOpen && (
+      {/* Floating bottom-centre panel toggles */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full shadow-lg overflow-hidden select-none">
         <button
-          onClick={() => setFormCollapsed(true)}
-          className="fixed right-4 top-1/2 -translate-y-1/2 z-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg p-2 shadow-lg text-gray-400 hover:text-accent hover:border-accent transition-colors"
-          title="Collapse form — preview only"
+          onClick={() => setFormCollapsed((v) => !v)}
+          className={`px-5 py-2 text-xs font-medium transition-colors ${
+            formCollapsed
+              ? 'text-gray-300 dark:text-gray-600'
+              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+          }`}
+          title={formCollapsed ? 'Show form' : 'Hide form'}
         >
-          <PanelLeftClose size={15} />
+          <span className={formCollapsed ? 'line-through' : ''}>Form</span>
         </button>
-      )}
-      {/* Restore form button — visible only when form collapsed */}
-      {formCollapsed && (
+        <div className="w-px h-5 bg-gray-200 dark:bg-gray-600 shrink-0" />
         <button
-          onClick={() => setFormCollapsed(false)}
-          className="fixed left-4 top-1/2 -translate-y-1/2 z-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-3 shadow-lg text-gray-400 hover:text-accent hover:border-accent transition-colors flex flex-col items-center gap-1"
-          title="Show form"
+          onClick={() => setPreviewOpen((v) => !v)}
+          className={`px-5 py-2 text-xs font-medium transition-colors ${
+            !previewOpen
+              ? 'text-gray-300 dark:text-gray-600'
+              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+          }`}
+          title={previewOpen ? 'Hide preview' : 'Show preview'}
         >
-          <PanelLeftOpen size={15} />
-          <span className="text-xs font-medium" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Show Form</span>
+          <span className={!previewOpen ? 'line-through' : ''}>Preview</span>
         </button>
-      )}
+      </div>
 
       {/* Two-column layout: left = meta+sections, right = preview */}
       <div className="flex gap-6 overflow-hidden" style={{ height: 'calc(100vh - 10rem)' }}>
         {/* Left column — independently scrollable */}
         <div className={`${formCollapsed ? 'hidden' : previewOpen ? 'w-80 shrink-0' : 'flex-1 max-w-2xl'} overflow-y-auto space-y-4 pb-6 pr-1`}>
-          {/* Template + language */}
+          {/* Template + language + display options */}
           <div className="card p-4 space-y-3">
             <div>
               <label className="label">Theme / Template</label>
@@ -379,6 +379,27 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
               <select className="input" value={note.language} onChange={(e) => set('language', e.target.value)}>
                 {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
               </select>
+            </div>
+            <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+              <label className="label mb-2">Export — Show / Hide</label>
+              <div className="grid grid-cols-2 gap-y-2">
+                {[
+                  { key: 'showParticipants', label: 'Participants' },
+                  { key: 'showEventType',    label: 'Meeting Type' },
+                  { key: 'showRoles',        label: 'Roles' },
+                  { key: 'showFirms',        label: 'Companies' },
+                ].map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={(note.displayOptions || {})[key] !== false}
+                      onChange={(e) => setDisplayOption(key, e.target.checked)}
+                      className="rounded accent-accent"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
 

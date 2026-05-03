@@ -221,6 +221,11 @@ export async function buildWordDoc(note, template, chartImages, t) {
   const accentClean = accent.replace('#', '')
   const tFn = t || ((k) => k)
   const children = []
+  const d = note.displayOptions || {}
+  const showParticipants = d.showParticipants !== false
+  const showRoles = d.showRoles !== false
+  const showFirms = d.showFirms !== false
+  const showEventType = d.showEventType !== false
 
   // ── Banner ──────────────────────────────────────────────────────────────────
   const bannerChildren = []
@@ -259,7 +264,7 @@ export async function buildWordDoc(note, template, chartImages, t) {
     indent: { left: 180 },
   }))
 
-  const subtitle = [note.customer, note.eventType].filter(Boolean).join(' · ')
+  const subtitle = [note.customer, showEventType ? note.eventType : null].filter(Boolean).join(' · ')
   if (subtitle) {
     children.push(new Paragraph({
       children: [new TextRun({ text: subtitle, size: 22, color: '64748B' })],
@@ -288,15 +293,14 @@ export async function buildWordDoc(note, template, chartImages, t) {
 
   // ── Participants ─────────────────────────────────────────────────────────────
   const activeP = (note.participants || []).filter((p) => p.enabled !== false && p.name)
-  if (activeP.length > 0) {
+  if (showParticipants && activeP.length > 0) {
+    const pHeaders = ['Name', ...(showFirms ? ['Firm'] : []), ...(showRoles ? ['Role'] : [])]
+    const pRows = activeP.map((p) => [dataCell(p.name, true), ...(showFirms ? [dataCell(p.firm || '')] : []), ...(showRoles ? [dataCell(p.role || '')] : [])])
     children.push(new Paragraph({
       children: [new TextRun({ text: tFn('participants')?.toUpperCase() || 'PARTICIPANTS', bold: true, size: 16, color: '94A3B8' })],
       spacing: { before: 100, after: 80 },
     }))
-    children.push(makeTable(
-      ['Name', 'Firm', 'Role'],
-      activeP.map((p) => [dataCell(p.name, true), dataCell(p.firm || ''), dataCell(p.role || '')])
-    ))
+    children.push(makeTable(pHeaders, pRows))
     children.push(divider())
     children.push(spacer(60))
   }
