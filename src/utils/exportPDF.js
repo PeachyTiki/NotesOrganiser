@@ -132,6 +132,11 @@ export async function buildPDF(note, template, chartImages, t) {
   const [ar, ag, ab] = hexToRgb(bannerColor)
   const tFn = t || ((k) => k)
   const dateStr = fmtDate(note.date)
+  const d = note.displayOptions || {}
+  const showParticipants = d.showParticipants !== false
+  const showRoles = d.showRoles !== false
+  const showFirms = d.showFirms !== false
+  const showEventType = d.showEventType !== false
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const b = new PageBuilder(pdf, [ar, ag, ab])
@@ -165,7 +170,7 @@ export async function buildPDF(note, template, chartImages, t) {
   }
 
   // ── Header strip background ──────────────────────────────────────────────
-  const subtitle = [note.customer, note.eventType].filter(Boolean).join(' · ')
+  const subtitle = [note.customer, showEventType ? note.eventType : null].filter(Boolean).join(' · ')
   const _tl = pdf.splitTextToSize(note.title || 'Untitled Meeting', CW)
   const _hdrH = 7 + _tl.length * 8.5 + (subtitle ? 4.5 : 0) + (note.team ? 5 : 0) + (dateStr ? 5 : 0) + 4
   pdf.setFillColor(248, 250, 252)
@@ -195,7 +200,7 @@ export async function buildPDF(note, template, chartImages, t) {
 
   // ── Participants ─────────────────────────────────────────────────────────
   const activeP = (note.participants || []).filter((p) => p.enabled !== false && p.name)
-  if (activeP.length > 0) {
+  if (showParticipants && activeP.length > 0) {
     b.needsPage(18)
     pdf.setFontSize(7.5)
     pdf.setFont('helvetica', 'bold')
@@ -208,7 +213,7 @@ export async function buildPDF(note, template, chartImages, t) {
     let lineY = b.y
 
     for (const p of activeP) {
-      const label = p.name + (p.role ? ` · ${p.role}` : '') + (p.firm ? ` (${p.firm})` : '')
+      const label = p.name + (showRoles && p.role ? ` · ${p.role}` : '') + (showFirms && p.firm ? ` (${p.firm})` : '')
       pdf.setFontSize(8.5)
       const tw = pdf.getTextWidth(label) + tagPad * 2
       if (tx + tw > PW - MR) { tx = ML; lineY += tagH + 2 }

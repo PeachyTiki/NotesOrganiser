@@ -91,7 +91,7 @@ function BulkExportButton({ notes, exportGroups, zipFilename, templates, level }
             className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
           >
             <FileDown size={11} className="text-accent" />
-            PDF (real text)
+            PDF
           </button>
           <button
             onClick={(e) => run(e, 'docx')}
