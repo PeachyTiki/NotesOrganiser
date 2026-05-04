@@ -88,21 +88,21 @@ function BulkExportButton({ notes, exportGroups, zipFilename, templates, level }
           </div>
           <button
             onClick={(e) => run(e, 'pdf')}
-            className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
           >
             <FileDown size={11} className="text-accent" />
             PDF
           </button>
           <button
             onClick={(e) => run(e, 'docx')}
-            className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
           >
             <FileDown size={11} className="text-blue-500" />
             Word (.docx)
           </button>
           <button
             onClick={(e) => run(e, 'png')}
-            className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+            className="w-full text-left px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
           >
             <FileDown size={11} className="text-green-500" />
             Images (.jpg)

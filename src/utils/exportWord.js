@@ -2,6 +2,7 @@ import {
   Document, Packer, Paragraph, TextRun, ImageRun, Table, TableRow, TableCell,
   WidthType, AlignmentType, ShadingType, BorderStyle,
 } from 'docx'
+import { htmlToPlainText } from './markdownToHtml'
 
 // A4 in twips (1 inch = 1440 twips)
 const PAGE_WIDTH_TWIPS  = 11906
@@ -311,7 +312,8 @@ export async function buildWordDoc(note, template, chartImages, t) {
     const s = sections[i]
 
     if (s.type === 'text' || s.type === 'notes') {
-      const content = s.content || ''
+      const raw = s.content || ''
+      const content = raw.includes('<') ? htmlToPlainText(raw) : raw
       if (!content.trim() && !s.label) continue
       if (s.label) {
         children.push(sectionHeading(s.label, accent))
@@ -501,7 +503,8 @@ export async function buildBulkWordDoc(notes) {
       if (['graph', 'gantt', 'pie', 'line'].includes(s.type)) continue
 
       if (s.type === 'text' || s.type === 'notes') {
-        const content = s.content || ''
+        const raw = s.content || ''
+        const content = raw.includes('<') ? htmlToPlainText(raw) : raw
         if (!content.trim() && !s.label) continue
         if (s.label) {
           children.push(sectionHeading(s.label, accent))

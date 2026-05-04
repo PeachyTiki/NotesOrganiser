@@ -1,12 +1,13 @@
 import React from 'react'
+import RichTextEditor from './RichTextEditor'
 
 export default function TextSection({ section, onChange }) {
   return (
-    <textarea
-      className="input resize-none text-sm leading-relaxed min-h-40 w-full"
+    <RichTextEditor
       value={section.content || ''}
-      onChange={(e) => onChange({ content: e.target.value })}
-      placeholder={`Write notes here…\n\nUse ## for headings, - for bullets, - [ ] for action items.`}
+      onChange={(html) => onChange({ content: html })}
+      placeholder="Write notes here… (Ctrl+B bold, Ctrl+I italic, Ctrl+U underline, Tab indent)"
+      minHeight={160}
     />
   )
 }

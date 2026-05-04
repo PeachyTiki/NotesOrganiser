@@ -54,7 +54,7 @@ export function buildAIPrompt(note, allMeetingNotes, mode, toneSettings) {
         : undefined,
       output_format:
         mode === 'json'
-          ? 'Return only the current_session.sections array as valid JSON, with content filled in. Keep all section IDs unchanged. Only add text to sections with type "text". For topics/actionItems/decisions you may add new items but keep existing ones.'
+          ? 'CRITICAL: Respond with ONLY a raw JSON object. No code fences (```), no markdown, no explanation text before or after. The response MUST start with { and end with }. Return only the current_session.sections array as valid JSON, with content filled in. Keep all section IDs unchanged. Only add text to sections with type "text". For topics/actionItems/decisions you may add new items but keep existing ones.'
           : 'Return the meeting notes as clean formatted text using markdown (## for headings, - for bullets, - [ ] for unchecked items, - [x] for checked items).',
       tone: buildToneString(toneSettings),
     },
@@ -165,8 +165,14 @@ export function buildSectionAIPrompt(section, note, allMeetingNotes, toneSetting
       output_language: langName
         ? `Write ALL output content in ${langName}. This applies regardless of what language the transcript or raw notes are in.`
         : undefined,
-      output_format:
-        'Return a JSON object with a single "content" field containing the formatted notes as markdown text. Example: {"content": "## Summary\\n- Point one\\n- Point two"}. Plain text is also accepted by the app.',
+      output_format: [
+        'CRITICAL: Respond with ONLY a raw JSON object — no code fences (```json or ```), no introductory text, no explanation after.',
+        'The response MUST start with { and end with }.',
+        'Required format: {"content": "your formatted notes here"}',
+        'Inside the "content" string, use markdown: ## for headings, - for bullets, - [ ] for open tasks, - [x] for done tasks, **bold** for key terms.',
+        'Example: {"content": "## Meeting Summary\\n- Discussed Q3 roadmap\\n- **Decision:** Launch in October\\n\\n## Action Items\\n- [ ] Alice: Write spec by Friday"}',
+        'If the transcript is absent or unclear, ask the user in plain text (not JSON) to provide their notes.',
+      ].join(' '),
       tone: buildToneString(toneSettings),
     },
     meeting_context: {
@@ -261,18 +267,45 @@ export function buildContextAIPrompt(notes, scopeLabel, scope) {
     scope_label: scopeLabel,
     instructions: {
       task: [
-        `You have been given the complete meeting history for: "${scopeLabel}".`,
-        'Provide a comprehensive status report covering:',
-        '1. OVERALL STANDING — brief executive summary of where things are today',
-        '2. OPEN TOPICS — list all topics that are still open or in-progress across all meetings',
-        '3. PENDING ACTION ITEMS — list every action item that has not been marked done, grouped by assignee if possible',
-        '4. RECENTLY COMPLETED — highlights of what was finished or closed recently',
-        '5. PROJECT TIMELINE (if Gantt data is present) — assess progress against the plan, flag any late or at-risk tasks',
-        '6. KEY DECISIONS — summarise important decisions recorded across these meetings',
-        '7. NEXT STEPS — recommended priorities based on the open work',
+        `You have been given the COMPLETE meeting history for: "${scopeLabel}".`,
+        'Produce a thorough, detailed status report. Be specific — name people, dates, decisions, and exact tasks. Do not summarise vaguely.',
+        '',
+        'Your report MUST cover ALL of the following sections (omit only if truly no data exists):',
+        '',
+        '## 1. Executive Summary',
+        'Two to four sentences on the current overall state of this engagement/project. What is happening, where are we, what is the mood/momentum?',
+        '',
+        '## 2. Open Topics & Discussions',
+        'List EVERY topic marked open or in-progress across all meetings. For each: topic name, which meeting it was raised in, current status, who owns it.',
+        '',
+        '## 3. Pending Action Items',
+        'List EVERY action item not marked done. Group by assignee. Include: task description, who assigned it, due date if known, which meeting it came from.',
+        '',
+        '## 4. Completed Work',
+        'List topics closed and action items marked done. Include which meeting they were resolved in and any outcome noted.',
+        '',
+        '## 5. Key Decisions Log',
+        'Enumerate all formal decisions recorded. Include: decision text, date/meeting, owner, and any rationale or note.',
+        '',
+        '## 6. Risks & Blockers',
+        'List all risks and blockers recorded (open and resolved). Include severity, owner, mitigation, and current status.',
+        '',
+        '## 7. Project Timeline',
+        'If Gantt chart data is present: list all tasks with their planned start/end dates, actual progress, and flag any tasks that are overdue or at risk.',
+        '',
+        '## 8. Resources & References',
+        'List all links and resources noted across meetings with their labels and any notes.',
+        '',
+        '## 9. Meeting-by-Meeting Highlights',
+        'For each meeting in chronological order: one paragraph covering what was discussed, what was decided, and what was assigned.',
+        '',
+        '## 10. Recommended Next Steps',
+        'Based on all open work, suggest the top 5–7 prioritised actions the team should focus on next, with suggested owners where obvious.',
+        '',
+        'Be exhaustive. Include verbatim quotes from notes where they add clarity.',
       ].join('\n'),
-      additional_use: 'After generating the summary the user may ask follow-up questions about any of these meetings. You have full context to answer questions such as "When was X decided?", "What is the status of project Y?", "Who is responsible for Z?".',
-      format: 'Use clear markdown with ## headings for each section. Use bullet points for lists.',
+      additional_use: 'After generating this report the user may ask follow-up questions about any aspect of these meetings. You have full context to answer questions such as "When was X decided?", "What is the status of project Y?", "Who is responsible for Z?", "What did we discuss on [date]?".',
+      format: 'Use clear markdown with ## headings. Use bullet points and sub-bullets for lists. Use **bold** for names, decisions, and deadlines.',
     },
     meetings: sorted.map((n) => ({
       date: n.date || '',
@@ -298,6 +331,7 @@ export function importSectionJsonResponse(jsonStr) {
   }
   if (typeof parsed === 'string') return parsed
   if (typeof parsed?.content === 'string') return parsed.content
-  // Fallback: accept the whole object stringified
-  throw new Error('Expected {"content": "..."} in the JSON response.')
+  // If the AI returned the whole prompt unchanged, pull out transcript as fallback
+  if (typeof parsed?.current_section?.transcript === 'string') return parsed.current_section.transcript
+  throw new Error('Expected {"content": "your notes here"} in the JSON response. Make sure the AI returned the correct format.')
 }
