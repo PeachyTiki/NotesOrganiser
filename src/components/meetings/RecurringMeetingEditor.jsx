@@ -217,6 +217,52 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, onC
           )}
         </div>
 
+        {/* Notes AI Defaults */}
+        <div className="card p-4 space-y-3">
+          <div>
+            <h2 className="section-title text-base">Notes AI Defaults</h2>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+              Default tone used when exporting an AI prompt for notes in this series. Each meeting can override these.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label text-sm">Formality</label>
+              <select
+                className="input"
+                value={form.defaultNotesTone?.formality || 'professional'}
+                onChange={(e) => set('defaultNotesTone', { ...(form.defaultNotesTone || {}), formality: e.target.value })}
+              >
+                <option value="casual">Casual</option>
+                <option value="professional">Professional</option>
+                <option value="formal">Formal</option>
+              </select>
+            </div>
+            <div>
+              <label className="label text-sm">Detail Level</label>
+              <select
+                className="input"
+                value={form.defaultNotesTone?.conciseness || 'balanced'}
+                onChange={(e) => set('defaultNotesTone', { ...(form.defaultNotesTone || {}), conciseness: e.target.value })}
+              >
+                <option value="brief">Brief / Bullet points</option>
+                <option value="balanced">Balanced</option>
+                <option value="detailed">Detailed</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="label text-sm">Custom Instructions <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
+            <textarea
+              className="input text-sm resize-none"
+              rows={2}
+              value={form.defaultNotesTone?.customInstructions || ''}
+              onChange={(e) => set('defaultNotesTone', { ...(form.defaultNotesTone || {}), customInstructions: e.target.value })}
+              placeholder="e.g. Focus on decisions and action items. Use concise bullet points."
+            />
+          </div>
+        </div>
+
         {/* Default template + language */}
         <div className="card p-4 space-y-3">
           <div>

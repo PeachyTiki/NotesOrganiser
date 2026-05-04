@@ -645,7 +645,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
               t={t}
               note={{ ...note, title: effectiveTitle }}
               meetingNotes={meetingNotes}
-              defaultTone={settings?.aiTone}
+              defaultTone={recurringMeeting?.defaultNotesTone || settings?.aiTone}
             />
           </div>
         </div>
