@@ -68,7 +68,7 @@ function newSection(type) {
 
 function SectionBody({ section, onChange, t, onOpenTextEditor }) {
   if (section.type === 'text')        return <TextSection section={section} onChange={onChange} />
-  if (section.type === 'notes')       return <NotesSection section={section} onChange={onChange} />
+  if (section.type === 'notes')       return <NotesSection section={section} onChange={onChange} onOpenTextEditor={onOpenTextEditor} />
   if (section.type === 'topics')      return <TopicsSection section={section} onChange={onChange} t={t} />
   if (section.type === 'graph')       return <GraphSection section={section} onChange={onChange} t={t} />
   if (section.type === 'gantt')       return <GanttSection section={section} onChange={onChange} />

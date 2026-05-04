@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf'
+import { htmlToPlainText } from './markdownToHtml'
 
 const PW = 210, PH = 297
 const ML = 15, MR = 15, MT = 15, MB = 18
@@ -284,7 +285,8 @@ export async function buildPDF(note, template, chartImages, t) {
     }
 
     if (s.type === 'text' || s.type === 'notes') {
-      const content = s.content || ''
+      const raw = s.content || ''
+      const content = raw.includes('<') ? htmlToPlainText(raw) : raw
       if (!content.trim() && !s.label) continue
       const lines = content.split('\n')
       for (const line of lines) {

@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect, useContext } from 'react'
-import { Brain, Download, ChevronDown, ChevronRight } from 'lucide-react'
+import { Brain, Download, ChevronDown, ChevronRight, Pencil } from 'lucide-react'
 import { SectionContext } from '../SectionList'
 import { buildSectionAIPrompt, importSectionJsonResponse } from '../../../utils/aiPrompt'
+import { markdownToHtml } from '../../../utils/markdownToHtml'
 import { downloadBlob, formatDateForFilename } from '../../../utils/export'
 
 const DEFAULT_TONE = { formality: 'professional', conciseness: 'balanced', customInstructions: '' }
 
-export default function NotesSection({ section, onChange }) {
+export default function NotesSection({ section, onChange, onOpenTextEditor }) {
   const { note, meetingNotes, defaultTone } = useContext(SectionContext) || {}
 
   const [importOpen, setImportOpen] = useState(false)
@@ -50,19 +51,22 @@ export default function NotesSection({ section, onChange }) {
     let content
     if (stripped.startsWith('{')) {
       try {
-        content = importSectionJsonResponse(stripped)
+        const raw = importSectionJsonResponse(stripped)
+        content = markdownToHtml(raw)
       } catch (err) {
         flash(setError, errorTimer, err.message)
         return
       }
     } else {
-      content = stripped
+      content = markdownToHtml(stripped)
     }
     onChange({ content })
     setPasteText('')
     flash(setSuccess, successTimer, 'Notes updated.')
     setError('')
   }
+
+  const hasContent = !!(section.content?.trim())
 
   return (
     <div className="space-y-2">
@@ -83,6 +87,14 @@ export default function NotesSection({ section, onChange }) {
         >
           <Download size={12} /> Export JSON
         </button>
+        {hasContent && onOpenTextEditor && (
+          <button
+            onClick={onOpenTextEditor}
+            className="btn-secondary flex items-center gap-1.5 text-xs py-1 px-3"
+          >
+            <Pencil size={12} /> Edit
+          </button>
+        )}
         <button
           onClick={() => setImportOpen((v) => !v)}
           className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
