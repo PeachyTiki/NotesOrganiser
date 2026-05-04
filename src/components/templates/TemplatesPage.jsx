@@ -59,13 +59,23 @@ export default function TemplatesPage() {
 }
 
 function TemplateCard({ template, onEdit, onDelete }) {
+  const logoPos = template.logo?.position || 'top-left'
+  const logoJustify = logoPos === 'top-right' ? 'flex-end' : logoPos === 'top-center' ? 'center' : 'flex-start'
+
   return (
     <div className="card overflow-hidden group">
       {/* Banner preview */}
       <div
-        className="h-10 w-full"
+        className="h-12 w-full flex items-center px-3"
         style={{ backgroundColor: template.bannerColor || '#ff0000' }}
-      />
+      >
+        {template.logo?.show && template.logo?.data
+          ? <div className="flex w-full" style={{ justifyContent: logoJustify }}>
+              <img src={template.logo.data} alt="Logo" className="h-7 object-contain" />
+            </div>
+          : <span className="text-white/70 text-xs font-medium">Meeting Notes</span>
+        }
+      </div>
       {/* Logo preview row */}
       <div className="px-4 pt-3 pb-4">
         <div className="flex items-center justify-between mb-2">
