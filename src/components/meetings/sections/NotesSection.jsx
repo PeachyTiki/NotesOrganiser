@@ -1,13 +1,14 @@
 import React, { useState, useRef, useContext } from 'react'
-import { Brain, Download, ChevronDown, ChevronRight, Pencil, Settings2 } from 'lucide-react'
+import { Brain, Download, ChevronDown, ChevronRight, Settings2 } from 'lucide-react'
 import { SectionContext } from '../SectionList'
 import { buildSectionAIPrompt, importSectionJsonResponse } from '../../../utils/aiPrompt'
-import { markdownToHtml } from '../../../utils/markdownToHtml'
+import { markdownToHtml, htmlToPlainText } from '../../../utils/markdownToHtml'
+import RichTextEditor from './RichTextEditor'
 import { downloadBlob, formatDateForFilename } from '../../../utils/export'
 
 const DEFAULT_TONE = { formality: 'professional', conciseness: 'balanced', customInstructions: '' }
 
-export default function NotesSection({ section, onChange, onOpenTextEditor }) {
+export default function NotesSection({ section, onChange }) {
   const { note, meetingNotes, defaultTone, contextDepth } = useContext(SectionContext) || {}
 
   // Tone is persisted in section.tone; initialise with section override → serie default → app default
@@ -54,25 +55,25 @@ export default function NotesSection({ section, onChange, onOpenTextEditor }) {
       return
     }
     const stripped = pasteText.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
-    let content
+    let raw
     if (stripped.startsWith('{')) {
       try {
-        const raw = importSectionJsonResponse(stripped)
-        content = markdownToHtml(raw)
+        raw = importSectionJsonResponse(stripped)
       } catch (err) {
         flash(setError, errorTimer, err.message)
         return
       }
     } else {
-      content = markdownToHtml(stripped)
+      raw = stripped
     }
+    // Strip any HTML tags (e.g. browser-formatted copy-paste) then convert markdown → HTML
+    const plain = raw.includes('<') ? htmlToPlainText(raw) : raw
+    const content = markdownToHtml(plain)
     onChange({ content })
     setPasteText('')
     flash(setSuccess, successTimer, 'Notes updated.')
     setError('')
   }
-
-  const hasContent = !!(section.content?.trim())
 
   const toneLabel = {
     casual: 'Casual', professional: 'Professional', formal: 'Formal',
@@ -84,12 +85,11 @@ export default function NotesSection({ section, onChange, onOpenTextEditor }) {
   return (
     <div className="space-y-2">
       {/* Main editable area */}
-      <textarea
-        className="input text-sm leading-relaxed w-full"
-        style={{ minHeight: '160px', resize: 'vertical' }}
+      <RichTextEditor
         value={section.content || ''}
-        onChange={(e) => onChange({ content: e.target.value })}
-        placeholder={`Write session notes here while the meeting is in progress, or paste your transcript.\n\nUse ## for headings, - for bullets, - [ ] for tasks.`}
+        onChange={(html) => onChange({ content: html })}
+        placeholder="Write session notes here while the meeting is in progress, or paste your transcript."
+        minHeight={160}
       />
 
       {/* Action row */}
@@ -100,15 +100,6 @@ export default function NotesSection({ section, onChange, onOpenTextEditor }) {
         >
           <Download size={12} /> Export JSON
         </button>
-
-        {hasContent && onOpenTextEditor && (
-          <button
-            onClick={onOpenTextEditor}
-            className="btn-secondary flex items-center gap-1.5 text-xs py-1 px-3"
-          >
-            <Pencil size={12} /> Edit
-          </button>
-        )}
 
         <button
           onClick={() => setToneOpen((v) => !v)}

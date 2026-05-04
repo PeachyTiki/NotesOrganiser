@@ -61,12 +61,16 @@ function SectionBlock({ section, bannerColor, t, isFirst }) {
   const chartId = `chart-section-${section.id}`
 
   if (section.type === 'text' || section.type === 'notes') {
-    const lines = (section.content || '').split('\n')
-    if (lines.every(l => l === '') && !section.label) return null
+    const content = section.content || ''
+    if (!content.trim() && !section.label) return null
+    const isHtml = content.trimStart().startsWith('<')
     return (
       <div style={{ marginBottom: 20 }}>
         <SectionHeader label={section.label} bannerColor={bannerColor} isFirst={isFirst} />
-        {renderTextLines(lines, bannerColor)}
+        {isHtml
+          ? <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.65 }} dangerouslySetInnerHTML={{ __html: content }} />
+          : renderTextLines(content.split('\n'), bannerColor)
+        }
       </div>
     )
   }
@@ -332,6 +336,18 @@ export default function NoteExportCanvas({ note, template, t }) {
       id="note-export-canvas"
       style={{ width: 800, backgroundColor: '#ffffff', fontFamily: fontFamily + ', Inter, sans-serif', fontSize: 13, color: '#1E293B', lineHeight: 1.65 }}
     >
+      <style>{`
+        #note-export-canvas ul{padding-left:1.5em;list-style-type:disc;margin:0.2em 0}
+        #note-export-canvas ol{padding-left:1.5em;list-style-type:decimal;margin:0.2em 0}
+        #note-export-canvas li{margin:0.1em 0}
+        #note-export-canvas h1{font-size:1.4em;font-weight:700;margin:0.4em 0 0.2em}
+        #note-export-canvas h2{font-size:1.2em;font-weight:700;margin:0.4em 0 0.2em}
+        #note-export-canvas h3{font-size:1.05em;font-weight:700;margin:0.3em 0 0.15em}
+        #note-export-canvas strong,#note-export-canvas b{font-weight:700}
+        #note-export-canvas em,#note-export-canvas i{font-style:italic}
+        #note-export-canvas u{text-decoration:underline}
+        #note-export-canvas p{margin:0.1em 0}
+      `}</style>
       {/* Banner */}
       <div style={{ backgroundColor: bannerColor, padding: '0 24px', height: 56, display: 'flex', alignItems: 'center' }}>
         {logo?.show && logo?.data ? (
