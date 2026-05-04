@@ -247,6 +247,28 @@ export default function SettingsModal({ onClose }) {
                   placeholder="e.g. Always include a decisions section. Use bullet points throughout."
                 />
               </div>
+              <div>
+                <label className="label">Previous Meeting Context</label>
+                <div className="flex items-center gap-3 mt-1">
+                  <input
+                    type="range"
+                    min={0}
+                    max={16}
+                    step={1}
+                    value={form.notesContextDepth ?? 4}
+                    onChange={(e) => set('notesContextDepth', +e.target.value)}
+                    className="flex-1 accent-accent"
+                  />
+                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 w-6 text-center shrink-0">
+                    {form.notesContextDepth ?? 4}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  {(form.notesContextDepth ?? 4) === 0
+                    ? 'No previous meeting context included in AI prompts.'
+                    : `Include the ${form.notesContextDepth ?? 4} most recent prior meetings from the same series as read-only context in AI prompts (0–16).`}
+                </p>
+              </div>
             </div>
           </div>
 

@@ -8,7 +8,7 @@ import { downloadBlob, formatDateForFilename } from '../../../utils/export'
 const DEFAULT_TONE = { formality: 'professional', conciseness: 'balanced', customInstructions: '' }
 
 export default function NotesSection({ section, onChange, onOpenTextEditor }) {
-  const { note, meetingNotes, defaultTone } = useContext(SectionContext) || {}
+  const { note, meetingNotes, defaultTone, contextDepth } = useContext(SectionContext) || {}
 
   // Tone is persisted in section.tone; initialise with section override → serie default → app default
   const [tone, setToneLocal] = useState(() => ({
@@ -39,7 +39,7 @@ export default function NotesSection({ section, onChange, onOpenTextEditor }) {
 
   const handleExport = () => {
     try {
-      const prompt = buildSectionAIPrompt(section, note || {}, meetingNotes || [], tone)
+      const prompt = buildSectionAIPrompt(section, note || {}, meetingNotes || [], tone, contextDepth ?? 4)
       const blob = new Blob([JSON.stringify(prompt, null, 2)], { type: 'application/json' })
       const dateStr = formatDateForFilename(note?.date)
       downloadBlob(blob, `ai_prompt_${dateStr}_${(section.label || 'notes').replace(/\s+/g, '_').slice(0, 30)}.json`)
