@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import {
   BookOpen, ChevronRight, ChevronDown, Calendar,
   Folder, FolderOpen, FileDown, Search, Copy, Pencil, Trash2,
-  ArrowUpDown, FileEdit, X, Check, Brain, CheckSquare, Circle, SlidersHorizontal, Eye,
+  ArrowUpDown, FileEdit, X, Check, Brain, CheckSquare, Circle, SlidersHorizontal, Eye, BookMarked, RefreshCw,
 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
@@ -10,6 +10,8 @@ import { bulkExportToZip, exportSingleNote, formatDateForFilename, downloadBlob 
 import { buildContextAIPrompt } from '../../utils/aiPrompt'
 import MeetingNoteEditor from '../meetings/MeetingNoteEditor'
 import NoteViewModal from './NoteViewModal'
+import MasterNotesModal from '../MasterNotesModal'
+import SyncPanel from './SyncPanel'
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
@@ -27,7 +29,7 @@ function noteTs(n) {
 
 // exportGroups: [{ customerName, subgroups: [{ label, notes }] }]
 // level: 'library' | 'customer' | 'meeting'
-function BulkExportButton({ notes, exportGroups, zipFilename, templates, level }) {
+function BulkExportButton({ notes, exportGroups, zipFilename, templates, level, showText = false }) {
   const [busy, setBusy] = useState(false)
   const [open, setOpen] = useState(false)
   const [dropPos, setDropPos] = useState({ top: 0, right: 0 })
@@ -76,7 +78,7 @@ function BulkExportButton({ notes, exportGroups, zipFilename, templates, level }
         title="Export folder"
       >
         <FileDown size={12} />
-        {busy ? 'Exporting…' : `Export (${notes.length})`}
+        {showText && (busy ? 'Exporting…' : `Export (${notes.length})`)}
       </button>
 
       {open && (
@@ -117,7 +119,7 @@ function BulkExportButton({ notes, exportGroups, zipFilename, templates, level }
   )
 }
 
-function AIContextButton({ notes, label, scope, iconSize = 12 }) {
+function AIContextButton({ notes, label, scope, iconSize = 12, showText = false }) {
   const [busy, setBusy] = useState(false)
 
   const handleClick = (e) => {
@@ -141,16 +143,18 @@ function AIContextButton({ notes, label, scope, iconSize = 12 }) {
       title="Export AI context prompt — feed to ChatGPT / Claude for a full summary"
     >
       <Brain size={iconSize} />
-      AI Context
+      {showText && 'AI Context'}
     </button>
   )
 }
 
 export default function LibraryPage() {
-  const { meetingNotes, recurringMeetings, templates, saveMeetingNote, deleteMeetingNote, settings } = useApp()
+  const { meetingNotes, recurringMeetings, templates, saveMeetingNote, deleteMeetingNote, settings, customers, saveCustomer, t, syncFileMap } = useApp()
   const internalNotesEnabled = !!settings?.internalNotesEnabled
   const [editingNote, setEditingNote] = useState(null)
   const [viewingNote, setViewingNote] = useState(null)
+  const [masterNotesCustomer, setMasterNotesCustomer] = useState(null)
+  const [syncPanelOpen, setSyncPanelOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -160,6 +164,7 @@ export default function LibraryPage() {
   const [filterPendingActions, setFilterPendingActions] = useState(false)
   const [filterHasTopics, setFilterHasTopics] = useState(false)
   const [filterMode, setFilterMode] = useState('all')
+  const [filterDrafts, setFilterDrafts] = useState(false)
   const [openCustomers, setOpenCustomers] = useState({})
   const [openSubgroups, setOpenSubgroups] = useState({})
 
@@ -169,6 +174,25 @@ export default function LibraryPage() {
     recurringMeetings.forEach((r) => { m[r.id] = r })
     return m
   }, [recurringMeetings])
+
+  const customerByName = useMemo(() => {
+    const m = {}
+    customers.forEach((c) => { m[c.name.toLowerCase()] = c })
+    return m
+  }, [customers])
+
+  const notesByCustomerName = useMemo(() => {
+    const m = {}
+    meetingNotes.forEach((n) => {
+      const custName = (n.recurringMeetingId && rmMap[n.recurringMeetingId])
+        ? rmMap[n.recurringMeetingId].customer || ''
+        : n.customer || ''
+      if (!custName) return
+      if (!m[custName]) m[custName] = []
+      m[custName].push(n)
+    })
+    return m
+  }, [meetingNotes, rmMap])
 
   const allCustomers = useMemo(() => {
     const set = new Set()
@@ -228,8 +252,10 @@ export default function LibraryPage() {
       if (filterMode === 'standard') list = list.filter((n) => n.modes?.standard !== false)
       if (filterMode === 'internal') list = list.filter((n) => !!n.modes?.internal)
     }
+    // Drafts filter: show only drafts when active, otherwise exclude drafts
+    list = filterDrafts ? list.filter((n) => n.isDraft) : list.filter((n) => !n.isDraft)
     return list
-  }, [meetingNotes, search, dateFrom, dateTo, filterCustomer, filterEventType, filterPendingActions, filterHasTopics, filterMode, internalNotesEnabled, rmMap])
+  }, [meetingNotes, search, dateFrom, dateTo, filterCustomer, filterEventType, filterPendingActions, filterHasTopics, filterMode, filterDrafts, internalNotesEnabled, rmMap])
 
   // Build 2-level hierarchy: Customer > (RecurringMeeting | One-off Notes)
   const libraryGroups = useMemo(() => {
@@ -258,7 +284,7 @@ export default function LibraryPage() {
       } else {
         customerName = n.customer || 'Uncategorised'
         subgroupKey = `oneoff::${customerName}`
-        subgroupLabel = 'One-off Notes'
+        subgroupLabel = t('miscMeetings')
         subgroupSubtitle = ''
       }
 
@@ -277,8 +303,10 @@ export default function LibraryPage() {
         subgroups: Object.values(subgroups)
           .map((sg) => ({ ...sg, notes: sg.notes.slice().sort(sortFn) }))
           .sort((a, b) => {
-            if (a.label === 'One-off Notes' && b.label !== 'One-off Notes') return 1
-            if (b.label === 'One-off Notes' && a.label !== 'One-off Notes') return -1
+            const aIsMisc = a.key.startsWith('oneoff::')
+            const bIsMisc = b.key.startsWith('oneoff::')
+            if (aIsMisc && !bIsMisc) return -1
+            if (bIsMisc && !aIsMisc) return 1
             return a.label.localeCompare(b.label)
           }),
       }))
@@ -287,14 +315,14 @@ export default function LibraryPage() {
         if (b.customerName === 'Uncategorised') return -1
         return a.customerName.localeCompare(b.customerName)
       })
-  }, [filteredNotes, rmMap, sortBy])
+  }, [filteredNotes, rmMap, sortBy, t])
 
-  const hasFilters = search || dateFrom || dateTo || filterCustomer || filterEventType || filterPendingActions || filterHasTopics || filterMode !== 'all'
+  const hasFilters = search || dateFrom || dateTo || filterCustomer || filterEventType || filterPendingActions || filterHasTopics || filterMode !== 'all' || filterDrafts
   const clearFilters = () => {
     setSearch(''); setDateFrom(''); setDateTo('')
     setFilterCustomer(''); setFilterEventType('')
     setFilterPendingActions(false); setFilterHasTopics(false)
-    setFilterMode('all')
+    setFilterMode('all'); setFilterDrafts(false)
   }
 
   const toggleCustomer = (name) => setOpenCustomers((s) => ({ ...s, [name]: !s[name] }))
@@ -309,7 +337,10 @@ export default function LibraryPage() {
     )
   }
 
-  if (meetingNotes.length === 0) {
+  const savedNotesCount = meetingNotes.filter((n) => !n.isDraft).length
+  const draftCount = meetingNotes.filter((n) => n.isDraft).length
+
+  if (savedNotesCount === 0) {
     return (
       <div>
         <div className="mb-6">
@@ -318,10 +349,18 @@ export default function LibraryPage() {
         </div>
         <div className="card p-16 text-center">
           <BookOpen size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-          <p className="text-gray-500 dark:text-gray-400 font-medium">No notes saved yet</p>
-          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-            Write and save meeting notes — they'll appear here organised by customer
-          </p>
+          <p className="text-gray-500 dark:text-gray-400 font-medium">No saved notes yet</p>
+          {draftCount > 0 ? (
+            <p className="text-sm text-amber-500 dark:text-amber-400 mt-1">
+              You have {draftCount} draft{draftCount !== 1 ? 's' : ''} — use the{' '}
+              <button className="underline font-medium" onClick={() => setFilterDrafts(true)}>Drafts only</button>
+              {' '}filter to see them
+            </p>
+          ) : (
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+              Write and save meeting notes — they'll appear here organised by customer
+            </p>
+          )}
         </div>
       </div>
     )
@@ -336,21 +375,33 @@ export default function LibraryPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Library</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-            {totalNotes}{hasFilters ? ` of ${meetingNotes.length}` : ''} note{meetingNotes.length !== 1 ? 's' : ''}
+            {filterDrafts
+              ? `${totalNotes}${hasFilters && totalNotes !== draftCount ? ` of ${draftCount}` : ''} draft${draftCount !== 1 ? 's' : ''}`
+              : `${totalNotes}${hasFilters && totalNotes !== savedNotesCount ? ` of ${savedNotesCount}` : ''} note${savedNotesCount !== 1 ? 's' : ''}`
+            }
             {' '}across {libraryGroups.length} customer{libraryGroups.length !== 1 ? 's' : ''}
           </p>
         </div>
         <div className="flex items-center gap-1">
-          <AIContextButton notes={filteredNotes} label="Full Library" scope="library" />
+          <button
+            onClick={() => setSyncPanelOpen(true)}
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors text-accent hover:bg-accent-light dark:hover:bg-accent-light"
+            title="Folder Sync — export notes as PDFs to local or cloud folders"
+          >
+            <RefreshCw size={12} /> Sync
+          </button>
+          <AIContextButton notes={filteredNotes} label="Full Library" scope="library" showText={true} />
           <BulkExportButton
             notes={filteredNotes}
             exportGroups={libraryGroups}
             zipFilename={`notes_library_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.zip`}
             templates={templates}
             level="library"
+            showText={true}
           />
         </div>
       </div>
+      {syncPanelOpen && <SyncPanel onClose={() => setSyncPanelOpen(false)} />}
 
       {/* Filter bar */}
       <div className="card p-3 mb-4 space-y-2">
@@ -413,7 +464,7 @@ export default function LibraryPage() {
             onClick={() => setFilterPendingActions((v) => !v)}
             className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1 ${
               filterPendingActions
-                ? 'bg-amber-50 dark:bg-amber-950 border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400'
+                ? 'bg-accent-light dark:bg-accent-light border-accent/30 text-accent'
                 : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
             }`}
           >
@@ -423,11 +474,21 @@ export default function LibraryPage() {
             onClick={() => setFilterHasTopics((v) => !v)}
             className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1 ${
               filterHasTopics
-                ? 'bg-indigo-50 dark:bg-indigo-950 border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400'
+                ? 'bg-accent-light dark:bg-accent-light border-accent/30 text-accent'
                 : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
             }`}
           >
             Has open topics
+          </button>
+          <button
+            onClick={() => setFilterDrafts((v) => !v)}
+            className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+              filterDrafts
+                ? 'bg-accent-light dark:bg-accent-light border-accent/30 text-accent'
+                : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
+            }`}
+          >
+            Drafts only
           </button>
           {internalNotesEnabled && (
             <>
@@ -466,7 +527,13 @@ export default function LibraryPage() {
       {libraryGroups.length === 0 ? (
         <div className="card p-10 text-center">
           <p className="text-gray-500 dark:text-gray-400 font-medium">No notes match your filters</p>
-          <button className="text-sm text-accent mt-2 hover:underline" onClick={clearFilters}>Clear filters</button>
+          {!filterDrafts && draftCount > 0 && (
+            <p className="text-sm text-amber-500 dark:text-amber-400 mt-1">
+              {draftCount} draft{draftCount !== 1 ? 's' : ''} hidden —{' '}
+              <button className="underline font-medium" onClick={() => setFilterDrafts(true)}>show drafts</button>
+            </p>
+          )}
+          <button className="text-sm text-accent mt-2 hover:underline block mx-auto" onClick={clearFilters}>Clear filters</button>
         </div>
       ) : (
         <div className="space-y-2">
@@ -501,6 +568,15 @@ export default function LibraryPage() {
                     }
                   </button>
                   <div className="pr-3 flex items-center gap-1">
+                    {customerByName[group.customerName.toLowerCase()] && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setMasterNotesCustomer(customerByName[group.customerName.toLowerCase()]) }}
+                        className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-accent hover:bg-accent-light dark:hover:bg-accent-light transition-colors shrink-0"
+                        title={t('masterNotes')}
+                      >
+                        <BookMarked size={12} /> {t('masterNotes')}
+                      </button>
+                    )}
                     <AIContextButton notes={groupNotes} label={group.customerName} scope="customer" />
                     <BulkExportButton
                       notes={groupNotes}
@@ -571,6 +647,13 @@ export default function LibraryPage() {
                                   onEdit={() => setEditingNote(note)}
                                   onDelete={() => {
                                     if (confirm(`Delete "${note.title}"? This cannot be undone.`)) {
+                                      if (window.electronAPI) {
+                                        Object.entries(syncFileMap || {}).forEach(([key, path]) => {
+                                          if (key.startsWith(`${note.id}|`) && path) {
+                                            window.electronAPI.deleteFile(path).catch(() => {})
+                                          }
+                                        })
+                                      }
                                       deleteMeetingNote(note.id)
                                     }
                                   }}
@@ -595,6 +678,14 @@ export default function LibraryPage() {
           note={viewingNote}
           onEdit={() => setEditingNote(viewingNote)}
           onClose={() => setViewingNote(null)}
+        />
+      )}
+
+      {masterNotesCustomer && (
+        <MasterNotesModal
+          customer={masterNotesCustomer}
+          customerNotes={notesByCustomerName[masterNotesCustomer.name] || []}
+          onClose={() => setMasterNotesCustomer(null)}
         />
       )}
     </div>
@@ -779,6 +870,11 @@ function NoteRow({ note, onView, onEdit, onDelete, internalNotesEnabled = false 
                   </span>
                 )}
               </div>
+              {note.isDraft && (
+                <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 shrink-0">
+                  DRAFT
+                </span>
+              )}
               {internalNotesEnabled && (
                 <div className="flex items-center gap-1 shrink-0">
                   {note.modes?.standard !== false && (
@@ -810,10 +906,10 @@ function NoteRow({ note, onView, onEdit, onDelete, internalNotesEnabled = false 
         {!renaming && (
           <button
             onClick={(e) => { e.stopPropagation(); onView() }}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-accent bg-accent-light dark:bg-accent-light hover:bg-accent hover:text-white shrink-0 transition-colors"
+            className="p-1.5 rounded text-gray-400 hover:text-accent hover:bg-accent-light dark:hover:bg-accent-light opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
             title="View note"
           >
-            <Eye size={11} /> View
+            <Eye size={13} />
           </button>
         )}
 
@@ -844,7 +940,7 @@ function NoteRow({ note, onView, onEdit, onDelete, internalNotesEnabled = false 
             <NoteExportDropdown note={note} />
             <button
               onClick={onDelete}
-              className="p-1.5 rounded text-gray-300 dark:text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+              className="p-1.5 rounded text-red-400 dark:text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
               title="Delete note"
             >
               <Trash2 size={13} />

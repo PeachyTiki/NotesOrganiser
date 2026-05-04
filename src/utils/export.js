@@ -126,6 +126,27 @@ export async function exportSingleNote(note, template, format, filename) {
   return true
 }
 
+// ─── Sync helpers — generate PDF buffer without triggering a download ─────────
+
+// Returns ArrayBuffer of the PDF. Uses the same captureNoteCharts approach as exportSingleNote.
+export async function renderNoteToPdfBuffer(note, template, t) {
+  const chartImages = await captureNoteCharts(note, template)
+  const pdf = await buildPDF(note, template, chartImages, t || null)
+  return pdf.output('arraybuffer')
+}
+
+// Convert ArrayBuffer → base64 string for IPC transfer
+// Chunked to avoid O(n²) string concatenation and spread stack-overflow on large PDFs
+export function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer)
+  const CHUNK = 8192
+  const parts = []
+  for (let i = 0; i < bytes.byteLength; i += CHUNK) {
+    parts.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)))
+  }
+  return btoa(parts.join(''))
+}
+
 // ─── Download helpers ─────────────────────────────────────────────────────────
 
 export function downloadPDF(pdf, filename) {

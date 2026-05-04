@@ -4,10 +4,11 @@ import { GanttChart, GanttDescriptionTable } from './sections/GanttSection'
 import { PieChart } from './sections/PieSection'
 import { LineChart } from './sections/LineSection'
 
-const ACTION_STATUS_COLORS = {
-  todo:       { bg: '#F1F5F9', text: '#64748B' },
+const TASK_STATUS_COLORS = {
+  planned:    { bg: '#F1F5F9', text: '#64748B' },
   inProgress: { bg: '#FFFBEB', text: '#D97706' },
-  done:       { bg: '#F0FDF4', text: '#16A34A' },
+  complete:   { bg: '#F0FDF4', text: '#16A34A' },
+  blocked:    { bg: '#FEF2F2', text: '#DC2626' },
 }
 
 function formatDate(dateStr) {
@@ -63,7 +64,7 @@ function SectionBlock({ section, bannerColor, t, isFirst }) {
   if (section.type === 'text' || section.type === 'notes') {
     const content = section.content || ''
     if (!content.trim() && !section.label) return null
-    const isHtml = content.trimStart().startsWith('<')
+    const isHtml = content.includes('<')
     return (
       <div style={{ marginBottom: 20 }}>
         <SectionHeader label={section.label} bannerColor={bannerColor} isFirst={isFirst} />
@@ -176,33 +177,36 @@ function SectionBlock({ section, bannerColor, t, isFirst }) {
     )
   }
 
-  if (section.type === 'actionItems') {
-    const items = (section.items || []).filter((i) => i.task)
+  if (section.type === 'tasks') {
+    const items = (section.items || []).filter((i) => i.text)
     if (items.length === 0 && !section.label) return null
+    const statusLabel = (st) => st === 'inProgress' ? 'In Progress' : st === 'complete' ? 'Complete' : st === 'blocked' ? 'Blocked' : 'Planned'
     return (
       <div style={{ marginBottom: 24 }}>
-        <SectionHeader label={section.label || 'Action Items'} bannerColor={bannerColor} isFirst={isFirst} />
+        <SectionHeader label={section.label || 'Tasks'} bannerColor={bannerColor} isFirst={isFirst} />
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '2px solid #E2E8F0' }}>
               <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748B', fontWeight: 600, width: '36%' }}>Task</th>
-              <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748B', fontWeight: 600, width: '20%' }}>Assignee</th>
-              <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748B', fontWeight: 600, width: '18%' }}>Due</th>
+              <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748B', fontWeight: 600, width: '18%' }}>Assignee</th>
+              <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748B', fontWeight: 600, width: '14%' }}>Start</th>
+              <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748B', fontWeight: 600, width: '14%' }}>End</th>
               <th style={{ textAlign: 'left', padding: '6px 8px', color: '#64748B', fontWeight: 600, width: '16%' }}>Status</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item, i) => {
-              const sc = ACTION_STATUS_COLORS[item.status] || ACTION_STATUS_COLORS.todo
-              const statusLabel = item.status === 'inProgress' ? 'In Progress' : item.status === 'done' ? 'Done' : 'To do'
+              const sc = TASK_STATUS_COLORS[item.status] || TASK_STATUS_COLORS.planned
+              const isComplete = item.status === 'complete'
               return (
                 <tr key={item.id} style={{ borderBottom: i < items.length - 1 ? '1px solid #F1F5F9' : 'none' }}>
-                  <td style={{ padding: '7px 8px', color: '#0F172A', fontWeight: 500 }}>{item.task}</td>
+                  <td style={{ padding: '7px 8px', color: isComplete ? '#16A34A' : '#0F172A', fontWeight: 500, textDecoration: isComplete ? 'line-through' : 'none' }}>{item.text}</td>
                   <td style={{ padding: '7px 8px', color: '#374151' }}>{item.assignee}</td>
-                  <td style={{ padding: '7px 8px', color: '#374151' }}>{formatDate(item.dueDate)}</td>
+                  <td style={{ padding: '7px 8px', color: '#374151' }}>{formatDate(item.startDate)}</td>
+                  <td style={{ padding: '7px 8px', color: '#374151' }}>{formatDate(item.endDate)}</td>
                   <td style={{ padding: '7px 8px' }}>
                     <span style={{ display: 'inline-block', backgroundColor: sc.bg, color: sc.text, borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
-                      {statusLabel}
+                      {statusLabel(item.status)}
                     </span>
                   </td>
                 </tr>
@@ -404,7 +408,7 @@ export default function NoteExportCanvas({ note, template, t, isInternal = false
 
       {/* Sections body */}
       <div style={{ padding: '20px 24px', minHeight: 360 }}>
-        {sections.map((section, idx) => (
+        {sections.filter((s) => s.visible !== false).map((section, idx) => (
           <SectionBlock key={section.id} section={section} bannerColor={bannerColor} t={tFn} isFirst={idx === 0} />
         ))}
       </div>

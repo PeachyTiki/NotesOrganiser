@@ -13,6 +13,8 @@ const defaultState = {
   recurringMeetings: [],
   meetingNotes: [],
   sectionPresets: [],
+  syncConfigs: [],
+  syncFileMap: {},
   darkMode: false,
   activeSection: 'meetings',
   settings: {
@@ -26,6 +28,8 @@ const defaultState = {
     aiTone: { formality: 'professional', conciseness: 'balanced', customInstructions: '' },
     notesContextDepth: 4,
     internalNotesEnabled: false,
+    tasksEnabled: false,
+    aiPromptMode: 'download',
   },
 }
 
@@ -35,17 +39,39 @@ function migrateState(raw) {
     ...raw,
     customers: raw.customers || [],
     sectionPresets: raw.sectionPresets || [],
+    syncConfigs: raw.syncConfigs || [],
+    syncFileMap: raw.syncFileMap || {},
     recurringMeetings: (raw.recurringMeetings || []).map((m) => ({
       schedule: { type: 'none' },  // default first so stored value wins
       ...m,
     })),
-    meetingNotes: (raw.meetingNotes || []).map((n) => ({
-      ...n,
-      // Old notes stored content as a flat string — wrap it
-      sections: n.sections || (n.content
-        ? [{ id: 'legacy-0', type: 'text', label: '', content: n.content }]
-        : []),
-    })),
+    meetingNotes: (raw.meetingNotes || []).map((n) => {
+      const migrateSection = (s) =>
+        s.type === 'actionItems'
+          ? {
+              ...s,
+              type: 'tasks',
+              items: (s.items || []).map((i) => ({
+                id: i.id,
+                text: i.task || '',
+                assignee: i.assignee || '',
+                status: i.status === 'done' ? 'complete' : i.status === 'inProgress' ? 'inProgress' : 'planned',
+                startDate: '',
+                endDate: i.dueDate || '',
+                createdAt: i.createdAt || new Date().toISOString(),
+              })),
+            }
+          : s
+      return {
+        ...n,
+        sections: n.sections
+          ? n.sections.map(migrateSection)
+          : n.content
+          ? [{ id: 'legacy-0', type: 'text', label: '', content: n.content }]
+          : [],
+        internalSections: (n.internalSections || []).map(migrateSection),
+      }
+    }),
   }
 }
 
@@ -192,6 +218,23 @@ export function AppProvider({ children }) {
   const deleteMeetingNote = (id) =>
     setState((s) => ({ ...s, meetingNotes: s.meetingNotes.filter((n) => n.id !== id) }))
 
+  const saveSyncConfig = (cfg) =>
+    setState((s) => {
+      const exists = s.syncConfigs.find((c) => c.id === cfg.id)
+      return {
+        ...s,
+        syncConfigs: exists
+          ? s.syncConfigs.map((c) => (c.id === cfg.id ? cfg : c))
+          : [...s.syncConfigs, cfg],
+      }
+    })
+
+  const deleteSyncConfig = (id) =>
+    setState((s) => ({ ...s, syncConfigs: s.syncConfigs.filter((c) => c.id !== id) }))
+
+  const updateSyncFileMap = (updates) =>
+    setState((s) => ({ ...s, syncFileMap: { ...(s.syncFileMap || {}), ...updates } }))
+
   // Wipe everything and reset to defaults
   const clearAllData = () => {
     try { localStorage.removeItem(STORAGE_KEY) } catch {}
@@ -218,12 +261,13 @@ export function AppProvider({ children }) {
   // Produce a full backup object (caller downloads it)
   const createBackup = () => ({
     _app: 'NotesOrganiser',
-    _version: '1',
+    _version: '2',
     _exportedAt: new Date().toISOString(),
     customers: state.customers,
     templates: state.templates,
     recurringMeetings: state.recurringMeetings,
     meetingNotes: state.meetingNotes,
+    sectionPresets: state.sectionPresets,
     settings: state.settings,
     darkMode: state.darkMode,
   })
@@ -248,6 +292,9 @@ export function AppProvider({ children }) {
         createBackup,
         saveSectionPreset,
         deleteSectionPreset,
+        saveSyncConfig,
+        deleteSyncConfig,
+        updateSyncFileMap,
         t,
       }}
     >

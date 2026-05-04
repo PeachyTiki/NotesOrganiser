@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { X, User, Globe, Palette, Download, Database, Upload, Trash2, CheckCircle2, AlertTriangle, Brain, Lock } from 'lucide-react'
+import { X, User, Globe, Palette, Download, Database, Upload, Trash2, CheckCircle2, AlertTriangle, Brain, Lock, CheckSquare, Info } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { LANGUAGES, getSystemLanguage } from '../utils/i18n'
 import Toggle from './Toggle'
@@ -25,6 +25,8 @@ export default function SettingsModal({ onClose }) {
   const [form, setForm] = useState({ ...settings })
   const [restoreStatus, setRestoreStatus] = useState(null) // null | 'ok' | 'error'
   const [backupStatus, setBackupStatus] = useState(null)   // null | { ok, msg }
+  const [infoOpen, setInfoOpen] = useState({})
+  const toggleInfo = (key) => setInfoOpen((p) => ({ ...p, [key]: !p[key] }))
   const fileRef = useRef(null)
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }))
@@ -273,20 +275,86 @@ export default function SettingsModal({ onClose }) {
             </div>
           </div>
 
+          {/* AI Prompt Mode */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Download size={14} className="text-accent" />
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">AI Prompt Mode</p>
+              <button onClick={() => toggleInfo('aiMode')} className={`p-0.5 transition-colors ${infoOpen.aiMode ? 'text-accent' : 'text-gray-300 dark:text-gray-600 hover:text-accent'}`} title="What is this?">
+                <Info size={12} />
+              </button>
+            </div>
+            {infoOpen.aiMode && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Controls how AI prompts are exported and how you import AI responses. <strong>Download mode</strong> saves/loads JSON files. <strong>Clipboard mode</strong> copies/pastes directly — the AI is instructed to output only raw JSON with no extra text, making it faster to use with chat interfaces.
+              </p>
+            )}
+            <div className="flex items-center gap-2 border border-gray-200 dark:border-gray-600 rounded-lg p-1 w-fit">
+              <button
+                onClick={() => set('aiPromptMode', 'download')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  (form.aiPromptMode || 'download') === 'download'
+                    ? 'bg-accent text-white'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                Download / Upload
+              </button>
+              <button
+                onClick={() => set('aiPromptMode', 'clipboard')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  form.aiPromptMode === 'clipboard'
+                    ? 'bg-accent text-white'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                Copy / Paste
+              </button>
+            </div>
+          </div>
+
           {/* Internal Notes */}
           <div>
             <div className="flex items-center gap-2 mb-3">
               <Lock size={14} className="text-accent" />
               <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Internal Notes</p>
+              <button onClick={() => toggleInfo('internalNotes')} className={`p-0.5 transition-colors ${infoOpen.internalNotes ? 'text-accent' : 'text-gray-300 dark:text-gray-600 hover:text-accent'}`} title="What is this?">
+                <Info size={12} />
+              </button>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              When enabled, each meeting note can have a separate internal version — for internal team use only, with its own template and sections. Disabling hides the feature everywhere but preserves all data.
-            </p>
+            {infoOpen.internalNotes && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Adds a parallel set of sections to each meeting note — visible only to you (never exported to the standard PDF/image). Use it for internal commentary, team-only context, or sensitive notes that shouldn't appear in customer-facing outputs. Disabling hides the feature everywhere but preserves all data.
+              </p>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-700 dark:text-gray-300">Enable Internal Notes</span>
               <Toggle
                 checked={!!form.internalNotesEnabled}
                 onChange={(val) => set('internalNotesEnabled', val)}
+              />
+            </div>
+          </div>
+
+          {/* Tasks */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <CheckSquare size={14} className="text-accent" />
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Tasks</p>
+              <button onClick={() => toggleInfo('tasks')} className={`p-0.5 transition-colors ${infoOpen.tasks ? 'text-accent' : 'text-gray-300 dark:text-gray-600 hover:text-accent'}`} title="What is this?">
+                <Info size={12} />
+              </button>
+            </div>
+            {infoOpen.tasks && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Adds a Tasks section to every meeting note for tracking action items with assignees, due dates, and status (Planned → In Progress → Complete / Blocked). A top-level Tasks page in the nav shows all tasks across every meeting with filters. The Notes overlay gets dedicated task columns for AI-assisted extraction. Disabling hides all task UI but preserves all data.
+              </p>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Enable Tasks</span>
+              <Toggle
+                checked={!!form.tasksEnabled}
+                onChange={(val) => set('tasksEnabled', val)}
               />
             </div>
           </div>
@@ -389,9 +457,12 @@ export default function SettingsModal({ onClose }) {
           </div>
         </div>
 
-        <div className="px-5 pb-5 flex gap-2 justify-end border-t border-gray-100 dark:border-gray-800 pt-4 sticky bottom-0 bg-white dark:bg-gray-900">
-          <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handleSave}>Save Settings</button>
+        <div className="px-5 pb-5 border-t border-gray-100 dark:border-gray-800 pt-4 sticky bottom-0 bg-white dark:bg-gray-900">
+          <div className="flex gap-2 justify-end mb-3">
+            <button className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button className="btn-primary" onClick={handleSave}>Save Settings</button>
+          </div>
+          <p className="text-xs text-center text-gray-300 dark:text-gray-600">Created by Monteo Pietsch</p>
         </div>
       </div>
     </div>

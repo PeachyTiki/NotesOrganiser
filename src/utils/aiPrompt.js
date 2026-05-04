@@ -74,7 +74,8 @@ export function buildAIPrompt(note, allMeetingNotes, mode, toneSettings) {
         (n) =>
           n.recurringMeetingId &&
           n.recurringMeetingId === note.recurringMeetingId &&
-          n.id !== note.id,
+          n.id !== note.id &&
+          !n.isDraft,
       )
       .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
       .slice(-5)
@@ -152,7 +153,7 @@ export function importAITextResponse(text, currentSections) {
 
 // ─── Section-scoped prompt (for the Notes section type) ───────────────────────
 
-export function buildSectionAIPrompt(section, note, allMeetingNotes, toneSettings, contextDepth = 4) {
+export function buildSectionAIPrompt(section, note, allMeetingNotes, toneSettings, contextDepth = 4, promptMode = 'download') {
   const langName = resolveLanguageName(note.language)
   const hasTranscript = !!(section.content?.trim())
 
@@ -163,7 +164,8 @@ export function buildSectionAIPrompt(section, note, allMeetingNotes, toneSetting
         .filter(
           (n) =>
             n.recurringMeetingId === note.recurringMeetingId &&
-            n.id !== note.id,
+            n.id !== note.id &&
+            !n.isDraft,
         )
         .sort((a, b) => {
           const d = (a.date || '').localeCompare(b.date || '')
@@ -206,6 +208,7 @@ export function buildSectionAIPrompt(section, note, allMeetingNotes, toneSetting
         'Inside the "content" string, use markdown: ## for headings, - for bullets, - [ ] for open tasks, - [x] for done tasks, **bold** for key terms.',
         'Example: {"content": "## Meeting Summary\\n- Discussed Q3 roadmap\\n- **Decision:** Launch in October\\n\\n## Action Items\\n- [ ] Alice: Write spec by Friday"}',
         'If the transcript is absent or unclear, ask the user in plain text (not JSON) to provide their notes.',
+        ...(promptMode === 'clipboard' ? ['ZERO additional text. Your entire message must be only the JSON object. Do not greet, do not explain, do not use code fences. Start your response with { and end with }.'] : []),
       ].join(' '),
       tone: buildToneString(toneSettings),
     },
@@ -242,9 +245,9 @@ function serializeSections(sections) {
     (s.items || []).map((i) => ({ label: s.label || 'Topics', topic: i.topic || '', description: i.description || '', status: i.status || 'open' }))
   )
 
-  const actions = (sections || []).filter((s) => s.type === 'actionItems')
-  if (actions.length) result.action_items = actions.flatMap((s) =>
-    (s.items || []).map((i) => ({ task: i.task || '', assignee: i.assignee || '', due: i.due || '', status: i.status || 'open' }))
+  const actions = (sections || []).filter((s) => s.type === 'tasks')
+  if (actions.length) result.tasks = actions.flatMap((s) =>
+    (s.items || []).map((i) => ({ text: i.text || '', assignee: i.assignee || '', startDate: i.startDate || '', endDate: i.endDate || '', status: i.status || 'planned' }))
   )
 
   const decisions = (sections || []).filter((s) => s.type === 'decisions')
@@ -340,6 +343,54 @@ export function buildContextAIPrompt(notes, scopeLabel, scope) {
   }
 }
 
+// ─── Master Notes context prompt ─────────────────────────────────────────────
+
+export function buildMasterNotesContextAIPrompt(customer, customerNotes, settings) {
+  const notesContextDepth = settings?.notesContextDepth ?? 4
+  const toneSettings = settings?.aiTone
+  const langCode = settings?.language
+  const langName = resolveLanguageName(langCode)
+
+  const recentNotes = [...(customerNotes || [])]
+    .filter((n) => !n.isDraft)
+    .sort((a, b) => {
+      const d = (b.date || '').localeCompare(a.date || '')
+      return d !== 0 ? d : (b.updatedAt || '').localeCompare(a.updatedAt || '')
+    })
+    .slice(0, notesContextDepth)
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+
+  const masterNotes = customer.masterNotes || {}
+
+  return {
+    _version: '1',
+    _type: 'master_notes_context_prompt',
+    instructions: {
+      task: `You have been given the master notes and recent meeting history for customer "${customer.name}". Use this as context when answering questions or completing tasks related to this customer.`,
+      output_language: langName
+        ? `Write ALL output content in ${langName}.`
+        : undefined,
+      tone: buildToneString(toneSettings),
+    },
+    customer: {
+      name: customer.name || '',
+    },
+    master_notes: {
+      standard: masterNotes.standard || '',
+      ...(settings?.internalNotesEnabled && masterNotes.internal ? { internal: masterNotes.internal } : {}),
+    },
+    background_meetings: recentNotes.map((n) => ({
+      date: n.date || '',
+      title: n.title || 'Untitled',
+      event_type: n.eventType || '',
+      participants: (n.participants || [])
+        .filter((p) => p.enabled !== false && p.name)
+        .map((p) => ({ name: p.name, role: p.role || '' })),
+      content: serializeSections(n.sections),
+    })),
+  }
+}
+
 // Parse a section-scoped JSON response — returns just the content string
 export function importSectionJsonResponse(jsonStr) {
   let parsed
@@ -353,4 +404,288 @@ export function importSectionJsonResponse(jsonStr) {
   // If the AI returned the whole prompt unchanged, pull out transcript as fallback
   if (typeof parsed?.current_section?.transcript === 'string') return parsed.current_section.transcript
   throw new Error('Expected {"content": "your notes here"} in the JSON response. Make sure the AI returned the correct format.')
+}
+
+// ─── Combined notes prompt (standard + internal in one export) ────────────────
+
+export function buildCombinedNotesAIPrompt(standardSection, internalSection, note, allMeetingNotes, standardTone, internalTone, contextDepth = 4, promptMode = 'download') {
+  const langName = resolveLanguageName(note.language)
+  const contains = []
+  if (standardSection) contains.push('standard')
+  if (internalSection) contains.push('internal')
+
+  const previousSessions = contextDepth > 0 && note.recurringMeetingId
+    ? allMeetingNotes
+        .filter((n) =>
+          n.recurringMeetingId === note.recurringMeetingId &&
+          n.id !== note.id &&
+          !n.isDraft,
+        )
+        .sort((a, b) => {
+          const d = (a.date || '').localeCompare(b.date || '')
+          return d !== 0 ? d : (a.updatedAt || '').localeCompare(b.updatedAt || '')
+        })
+        .slice(-contextDepth)
+        .map((n) => ({
+          date: n.date,
+          title: n.title || 'Untitled',
+          participants: (n.participants || [])
+            .filter((p) => p.enabled !== false && p.name)
+            .map((p) => ({ name: p.name, role: p.role || '' })),
+          content: serializeSections(n.sections),
+        }))
+    : []
+
+  const outputExample = contains.length === 2
+    ? '{"standard": {"content": "## Meeting Notes\\n- Point one"}, "internal": {"content": "## Internal\\n- Confidential point"}}'
+    : contains[0] === 'internal'
+    ? '{"internal": {"content": "## Internal Notes\\n- Point one"}}'
+    : '{"standard": {"content": "## Meeting Notes\\n- Point one"}}'
+
+  return {
+    _version: '1',
+    _type: 'combined_notes_prompt',
+    _contains: contains,
+    instructions: {
+      task: contains.length === 2
+        ? 'Clean up and format the provided transcript or raw notes into structured notes for BOTH the standard section and the internal section. Each section has its own tone instruction — follow them independently.'
+        : `Clean up and format the provided transcript or raw notes into structured notes for the ${contains[0] || 'notes'} section.`,
+      context_rule: previousSessions.length > 0
+        ? [
+            `CRITICAL CONTEXT RULE: previous_sessions contains ${previousSessions.length} prior meeting(s) as READ-ONLY BACKGROUND CONTEXT.`,
+            'Use them ONLY to understand recurring topics, running acronyms, ongoing decisions, and relationships.',
+            `DO NOT write notes for previous sessions. Your output covers ONLY the current session on ${note.date || 'today'}.`,
+          ].join(' ')
+        : undefined,
+      output_language: langName
+        ? `Write ALL output content in ${langName}. This applies regardless of the transcript language.`
+        : undefined,
+      output_format: [
+        'CRITICAL: Respond with ONLY a raw JSON object. No code fences (```), no introductory text, no explanation after.',
+        'The response MUST start with { and end with }.',
+        `Required format: ${outputExample}`,
+        'Inside content strings, use markdown: ## for headings, - for bullets, - [ ] for open tasks, - [x] for done tasks, **bold** for key terms.',
+        'If the transcript is absent, ask in plain text (not JSON) for the user to provide notes.',
+        ...(promptMode === 'clipboard' ? ['ZERO additional text. Your entire message must be only the JSON object. Do not greet, do not explain, do not use code fences. Start your response with { and end with }.'] : []),
+      ].join(' '),
+    },
+    meeting_context: {
+      title: note.title || 'Untitled',
+      customer: note.customer || '',
+      event_type: note.eventType || '',
+      team: note.team || '',
+      date: note.date || '',
+      language: langName || note.language || 'en',
+      participants: (note.participants || [])
+        .filter((p) => p.enabled !== false && p.name)
+        .map((p) => ({ name: p.name, role: p.role || '', firm: p.firm || '' })),
+    },
+    previous_sessions: previousSessions,
+    ...(standardSection ? {
+      standard_section: {
+        id: standardSection.id,
+        label: standardSection.label || 'Notes',
+        transcript: standardSection.content || '',
+        tone: buildToneString(standardTone),
+      },
+    } : {}),
+    ...(internalSection ? {
+      internal_section: {
+        id: internalSection.id,
+        label: internalSection.label || 'Notes',
+        transcript: internalSection.content || '',
+        tone: buildToneString(internalTone),
+      },
+    } : {}),
+  }
+}
+
+// Parse combined notes JSON response — returns { standard?, internal?, _raw? }
+export function importCombinedNotesJsonResponse(jsonStr) {
+  let parsed
+  try {
+    parsed = JSON.parse(jsonStr)
+  } catch {
+    throw new Error('Invalid JSON — could not parse the AI response.')
+  }
+
+  const result = {}
+  if (typeof parsed?.standard?.content === 'string') result.standard = parsed.standard.content
+  if (typeof parsed?.internal?.content === 'string') result.internal = parsed.internal.content
+  // Fallback: single-section {"content": "..."} style
+  if (!result.standard && !result.internal && typeof parsed?.content === 'string') result._raw = parsed.content
+
+  if (!result.standard && !result.internal && !result._raw) {
+    throw new Error('Expected {"standard": {"content": "..."}} or {"internal": {"content": "..."}} in the JSON response.')
+  }
+
+  return result
+}
+
+// ─── Combined notes + tasks prompt (master 4-panel export) ───────────────────
+
+export function buildCombinedNotesAndTasksAIPrompt(
+  standardSection,
+  internalSection,
+  standardTasksSection,
+  internalTasksSection,
+  note,
+  allMeetingNotes,
+  standardTone,
+  internalTone,
+  contextDepth = 4,
+  promptMode = 'download',
+  standardExtract = false,
+  internalExtract = false,
+) {
+  const langName = resolveLanguageName(note.language)
+  const contains = []
+  if (standardSection) contains.push('standard_notes')
+  if (internalSection) contains.push('internal_notes')
+  if (standardTasksSection) contains.push('standard_tasks')
+  if (internalTasksSection) contains.push('internal_tasks')
+
+  const previousSessions = contextDepth > 0 && note.recurringMeetingId
+    ? allMeetingNotes
+        .filter((n) =>
+          n.recurringMeetingId === note.recurringMeetingId &&
+          n.id !== note.id &&
+          !n.isDraft,
+        )
+        .sort((a, b) => {
+          const d = (a.date || '').localeCompare(b.date || '')
+          return d !== 0 ? d : (a.updatedAt || '').localeCompare(b.updatedAt || '')
+        })
+        .slice(-contextDepth)
+        .map((n) => ({
+          date: n.date,
+          title: n.title || 'Untitled',
+          participants: (n.participants || [])
+            .filter((p) => p.enabled !== false && p.name)
+            .map((p) => ({ name: p.name, role: p.role || '' })),
+          content: serializeSections(n.sections),
+        }))
+    : []
+
+  const hasTasks = !!(standardTasksSection || internalTasksSection)
+  const taskOutputExample = hasTasks
+    ? ', "standard_tasks": [{"text": "task", "assignee": "name or empty", "status": "planned", "startDate": "", "endDate": ""}]'
+    : ''
+  const internalTasksExample = internalTasksSection
+    ? ', "internal_tasks": [{"text": "task", "assignee": "", "status": "planned"}]'
+    : ''
+  const outputExample = `{"standard_notes": {"content": "## Notes\\n- Point one"}${internalSection ? ', "internal_notes": {"content": "## Internal\\n- Point"}' : ''}${taskOutputExample}${internalTasksExample}}`
+
+  return {
+    _version: '1',
+    _type: 'combined_notes_tasks_prompt',
+    _contains: contains,
+    instructions: {
+      task: [
+        'Clean up and format the provided transcript or raw notes into structured output covering ALL of the following:',
+        standardSection ? 'standard notes (customer-facing)' : null,
+        internalSection ? 'internal notes (team-only)' : null,
+        standardTasksSection ? (standardExtract ? 'standard tasks (extract action items from standard notes)' : 'standard tasks (structure the raw task input)') : null,
+        internalTasksSection ? (internalExtract ? 'internal tasks (extract action items from internal notes)' : 'internal tasks (structure the raw task input)') : null,
+      ].filter(Boolean).join(', ') + '.',
+      extract_standard_tasks_instruction: standardExtract && standardTasksSection
+        ? 'For the standard task list: scan the standard notes transcript for explicit action items, to-dos, and commitments. Extract them as structured tasks. Do not invent tasks not clearly stated.'
+        : undefined,
+      extract_internal_tasks_instruction: internalExtract && internalTasksSection
+        ? 'For the internal task list: scan the internal notes transcript for explicit action items, to-dos, and commitments. Extract them as structured tasks. Do not invent tasks not clearly stated.'
+        : undefined,
+      context_rule: previousSessions.length > 0
+        ? [
+            `CRITICAL CONTEXT RULE: previous_sessions contains ${previousSessions.length} prior meeting(s) as READ-ONLY BACKGROUND CONTEXT.`,
+            'DO NOT write notes for previous sessions. Your output covers ONLY the current session.',
+          ].join(' ')
+        : undefined,
+      output_language: langName
+        ? `Write ALL output content in ${langName}.`
+        : undefined,
+      output_format: [
+        'CRITICAL: Respond with ONLY a raw JSON object. No code fences, no explanatory text.',
+        `Required format: ${outputExample}`,
+        'For notes content strings, use markdown: ## headings, - bullets, **bold** for key terms.',
+        'For task arrays, each item must have: text, assignee (string or empty), status (planned/inProgress/complete/blocked), startDate (YYYY-MM-DD or empty), endDate (YYYY-MM-DD or empty).',
+        ...(promptMode === 'clipboard' ? ['ZERO additional text. Start with { and end with }.'] : []),
+      ].join(' '),
+    },
+    meeting_context: {
+      title: note.title || 'Untitled',
+      customer: note.customer || '',
+      event_type: note.eventType || '',
+      team: note.team || '',
+      date: note.date || '',
+      language: langName || note.language || 'en',
+      participants: (note.participants || [])
+        .filter((p) => p.enabled !== false && p.name)
+        .map((p) => ({ name: p.name, role: p.role || '', firm: p.firm || '' })),
+    },
+    previous_sessions: previousSessions,
+    ...(standardSection ? {
+      standard_notes_section: {
+        id: standardSection.id,
+        label: standardSection.label || 'Notes',
+        transcript: standardSection.content || '',
+        tone: buildToneString(standardTone),
+      },
+    } : {}),
+    ...(internalSection ? {
+      internal_notes_section: {
+        id: internalSection.id,
+        label: internalSection.label || 'Internal Notes',
+        transcript: internalSection.content || '',
+        tone: buildToneString(internalTone),
+      },
+    } : {}),
+    ...(standardTasksSection ? {
+      standard_tasks_section: {
+        raw_input: standardTasksSection.content || '',
+        existing_items: (standardTasksSection.items || []).map((i) => ({
+          text: i.text || '', assignee: i.assignee || '', status: i.status || 'planned',
+        })),
+      },
+    } : {}),
+    ...(internalTasksSection ? {
+      internal_tasks_section: {
+        raw_input: internalTasksSection.content || '',
+        existing_items: (internalTasksSection.items || []).map((i) => ({
+          text: i.text || '', assignee: i.assignee || '', status: i.status || 'planned',
+        })),
+      },
+    } : {}),
+  }
+}
+
+// Parse combined notes + tasks JSON response
+export function importCombinedNotesAndTasksJsonResponse(jsonStr) {
+  let parsed
+  try {
+    parsed = JSON.parse(jsonStr)
+  } catch {
+    throw new Error('Invalid JSON — could not parse the AI response.')
+  }
+
+  const result = {}
+
+  // Notes
+  if (typeof parsed?.standard_notes?.content === 'string') result.standard_notes = parsed.standard_notes.content
+  else if (typeof parsed?.standard?.content === 'string') result.standard_notes = parsed.standard.content
+  if (typeof parsed?.internal_notes?.content === 'string') result.internal_notes = parsed.internal_notes.content
+  else if (typeof parsed?.internal?.content === 'string') result.internal_notes = parsed.internal.content
+  // Fallback
+  if (!result.standard_notes && !result.internal_notes && typeof parsed?.content === 'string') result._raw = parsed.content
+
+  // Tasks
+  if (Array.isArray(parsed?.standard_tasks)) result.standard_tasks = parsed.standard_tasks
+  if (Array.isArray(parsed?.internal_tasks)) result.internal_tasks = parsed.internal_tasks
+
+  const hasNotes = result.standard_notes || result.internal_notes || result._raw
+  const hasTasks = result.standard_tasks || result.internal_tasks
+  if (!hasNotes && !hasTasks) {
+    throw new Error('No notes or tasks found in the response. Check the AI output format.')
+  }
+
+  return result
 }

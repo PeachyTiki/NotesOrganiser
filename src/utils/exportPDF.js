@@ -45,9 +45,11 @@ class PageBuilder {
     this.pdf.setTextColor(...colorRgb)
     const maxW = CW - (x - ML)
     const lines = this.pdf.splitTextToSize(str, maxW)
-    this.needsPage(lines.length * lineH + 2)
-    this.pdf.text(lines, x, this.y)
-    this.y += lines.length * lineH
+    for (const line of lines) {
+      this.needsPage(lineH + 2)
+      this.pdf.text(line, x, this.y)
+      this.y += lineH
+    }
   }
 
   // Draw a table with header + rows
@@ -75,42 +77,56 @@ class PageBuilder {
     this.pdf.line(ML, this.y + hdrH, ML + totalW, this.y + hdrH)
     this.y += hdrH
 
+    const cellLineH = 4.5
     rows.forEach((row, ri) => {
-      this.needsPage(rowH + 2)
-      let cx = ML
-      row.forEach((cell, ci) => {
+      // Pre-compute all cell lines to determine actual row height
+      const cellData = row.map((cell, ci) => {
         const isObj = typeof cell === 'object' && cell !== null
         const text = isObj ? (cell.text || '') : String(cell || '')
         const bold = isObj ? !!cell.bold : false
         const badge = isObj ? !!cell.badge : false
         const colW = colDefs[ci]?.widthMm || 30
+        if (badge) return { text, bold, badge, isObj, colW, lines: [text] }
+        this.pdf.setFontSize(9)
+        const lines = this.pdf.splitTextToSize(text, colW - pad * 2)
+        return { text, bold, badge, isObj, colW, lines }
+      })
+      const maxLines = Math.max(1, ...cellData.map((c) => c.lines.length))
+      const actualRowH = Math.max(rowH, maxLines * cellLineH + 3)
 
-        if (badge && isObj) {
+      this.needsPage(actualRowH + 2)
+      let cx = ML
+      cellData.forEach((c, ci) => {
+        const isObj = c.isObj
+        const cell = row[ci]
+
+        if (c.badge && isObj) {
           const [br, bg, bb] = hexToRgb(cell.bg || '#F1F5F9')
           const [tr, tg, tb] = hexToRgb(cell.fg || '#64748B')
-          const bw = Math.min(this.pdf.getStringUnitWidth(text) * 8 / this.pdf.internal.scaleFactor + pad * 2, colW - 2)
+          const bw = Math.min(this.pdf.getStringUnitWidth(c.text) * 8 / this.pdf.internal.scaleFactor + pad * 2, c.colW - 2)
           this.pdf.setFillColor(br, bg, bb)
           this.pdf.roundedRect(cx + pad, this.y + 1.8, bw, 4, 1, 1, 'F')
           this.pdf.setFontSize(7.5)
           this.pdf.setFont('helvetica', 'bold')
           this.pdf.setTextColor(tr, tg, tb)
-          this.pdf.text(text, cx + pad + 1.5, this.y + 5)
+          this.pdf.text(c.text, cx + pad + 1.5, this.y + 5)
         } else {
           this.pdf.setFontSize(9)
-          this.pdf.setFont('helvetica', bold ? 'bold' : 'normal')
-          this.pdf.setTextColor(bold ? 15 : 55, bold ? 23 : 65, bold ? 42 : 81)
-          const lines = this.pdf.splitTextToSize(text, colW - pad * 2)
-          this.pdf.text(lines[0] || '', cx + pad, this.y + 5)
+          this.pdf.setFont('helvetica', c.bold ? 'bold' : 'normal')
+          this.pdf.setTextColor(c.bold ? 15 : 55, c.bold ? 23 : 65, c.bold ? 42 : 81)
+          c.lines.forEach((line, li) => {
+            this.pdf.text(line, cx + pad, this.y + 5 + li * cellLineH)
+          })
         }
-        cx += colW
+        cx += c.colW
       })
 
       if (ri < rows.length - 1) {
         this.pdf.setDrawColor(241, 245, 249)
         this.pdf.setLineWidth(0.1)
-        this.pdf.line(ML, this.y + rowH, ML + totalW, this.y + rowH)
+        this.pdf.line(ML, this.y + actualRowH, ML + totalW, this.y + actualRowH)
       }
-      this.y += rowH
+      this.y += actualRowH
     })
     this.y += 5
   }
@@ -236,10 +252,11 @@ export async function buildPDF(note, template, chartImages, t) {
     inProgress: { bg: '#FFFBEB', fg: '#D97706' },
     complete:   { bg: '#F0FDF4', fg: '#16A34A' },
   }
-  const STATUS_COLORS_ACTION = {
-    todo:       { bg: '#F1F5F9', fg: '#64748B' },
+  const STATUS_COLORS_TASK = {
+    planned:    { bg: '#F1F5F9', fg: '#64748B' },
     inProgress: { bg: '#FFFBEB', fg: '#D97706' },
-    done:       { bg: '#F0FDF4', fg: '#16A34A' },
+    complete:   { bg: '#F0FDF4', fg: '#16A34A' },
+    blocked:    { bg: '#FEF2F2', fg: '#DC2626' },
   }
   const STATUS_COLORS_SEVERITY = {
     low:      { bg: '#F0FDF4', fg: '#16A34A' },
@@ -259,7 +276,7 @@ export async function buildPDF(note, template, chartImages, t) {
   const lgS = Math.round(ag + (255 - ag) * 0.88)
   const lbS = Math.round(ab + (255 - ab) * 0.88)
 
-  const sections = note.sections || []
+  const sections = (note.sections || []).filter((s) => s.visible !== false)
   for (let i = 0; i < sections.length; i++) {
     const s = sections[i]
 
@@ -341,17 +358,18 @@ export async function buildPDF(note, template, chartImages, t) {
       )
     }
 
-    if (s.type === 'actionItems') {
-      const items = (s.items || []).filter((item) => item.task)
+    if (s.type === 'tasks') {
+      const items = (s.items || []).filter((item) => item.text)
       if (items.length === 0) continue
-      const stLabel = (st) => st === 'inProgress' ? 'In Progress' : st === 'done' ? 'Done' : 'To do'
+      const stLabel = (st) => st === 'inProgress' ? 'In Progress' : st === 'complete' ? 'Complete' : st === 'blocked' ? 'Blocked' : 'Planned'
       b.table(
-        [{ label: 'Task', widthMm: 66 }, { label: 'Assignee', widthMm: 36 }, { label: 'Due Date', widthMm: 42 }, { label: 'Status', widthMm: 36 }],
+        [{ label: 'Task', widthMm: 58 }, { label: 'Assignee', widthMm: 32 }, { label: 'Start', widthMm: 28 }, { label: 'End', widthMm: 28 }, { label: 'Status', widthMm: 34 }],
         items.map((item) => [
-          { text: item.task || '', bold: true },
+          { text: item.text || '', bold: true },
           { text: item.assignee || '' },
-          { text: item.dueDate ? fmtDate(item.dueDate) : '' },
-          { text: stLabel(item.status), badge: true, ...(STATUS_COLORS_ACTION[item.status] || STATUS_COLORS_ACTION.todo) },
+          { text: item.startDate ? fmtDate(item.startDate) : '' },
+          { text: item.endDate ? fmtDate(item.endDate) : '' },
+          { text: stLabel(item.status), badge: true, ...(STATUS_COLORS_TASK[item.status] || STATUS_COLORS_TASK.planned) },
         ])
       )
     }
