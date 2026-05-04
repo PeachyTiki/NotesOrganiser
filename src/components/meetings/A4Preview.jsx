@@ -6,7 +6,7 @@ import NoteExportCanvas from './NoteExportCanvas'
 const A4_W = 794
 const A4_H = 1122
 
-export default function A4Preview({ note, template, t }) {
+export default function A4Preview({ note, template, t, isInternal = false }) {
   const containerRef = useRef(null)
   const innerRef = useRef(null)
   const [scale, setScale] = useState(1)
@@ -191,7 +191,7 @@ export default function A4Preview({ note, template, t }) {
             backgroundColor: '#ffffff',
           }}
         >
-          <NoteExportCanvas note={note} template={template} t={t} />
+          <NoteExportCanvas note={note} template={template} t={t} isInternal={isInternal} />
         </div>
       </div>
 

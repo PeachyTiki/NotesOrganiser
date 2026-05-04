@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, FileEdit, FileDown } from 'lucide-react'
+import { X, FileEdit, FileDown, Lock } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import A4Preview from '../meetings/A4Preview'
 import { makeT } from '../../utils/i18n'
@@ -18,12 +18,20 @@ function slug(str) {
 }
 
 export default function NoteViewModal({ note, onEdit, onClose }) {
-  const { templates } = useApp()
+  const { templates, settings } = useApp()
+  const internalNotesEnabled = !!settings?.internalNotesEnabled
+  const hasStandard = note.modes?.standard !== false
+  const hasInternal = !!note.modes?.internal
+  const bothExist = internalNotesEnabled && hasStandard && hasInternal
+
   const [exportFormat, setExportFormat] = useState('pdf')
   const [exporting, setExporting] = useState(false)
+  const [viewMode, setViewMode] = useState(() => hasInternal && !hasStandard ? 'internal' : 'standard')
 
-  const resolvedTemplate = templates.find((t) => t.id === note.templateId) || null
+  const isInternal = internalNotesEnabled && viewMode === 'internal' && hasInternal
+  const resolvedTemplate = templates.find((t) => t.id === (isInternal ? (note.internalTemplateId || '') : note.templateId)) || null
   const exportT = makeT(note.language)
+  const noteForView = { ...note, sections: isInternal ? (note.internalSections || []) : (note.sections || []) }
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose() }
@@ -35,9 +43,10 @@ export default function NoteViewModal({ note, onEdit, onClose }) {
     if (exporting) return
     setExporting(true)
     try {
-      const base = `${formatDateForFilename(note.date)}_${slug(note.title || 'note')}`
+      const modeTag = isInternal ? '_internal' : ''
+      const base = `${formatDateForFilename(note.date)}_${slug(note.title || 'note')}${modeTag}`
       const ext = exportFormat === 'pdf' ? '.pdf' : exportFormat === 'docx' ? '.docx' : '.jpg'
-      await exportSingleNote(note, resolvedTemplate, exportFormat, base + ext)
+      await exportSingleNote(noteForView, resolvedTemplate, exportFormat, base + ext)
     } catch (err) {
       alert('Export failed: ' + err.message)
     } finally {
@@ -53,13 +62,36 @@ export default function NoteViewModal({ note, onEdit, onClose }) {
         {/* Header */}
         <div className="flex items-center gap-4 px-5 py-3 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 shrink-0">
           <div className="min-w-0 flex-1">
-            <h2 className="font-semibold text-gray-900 dark:text-white truncate">{note.title || 'Untitled'}</h2>
+            <div className="flex items-center gap-2 min-w-0">
+              <h2 className="font-semibold text-gray-900 dark:text-white truncate">{note.title || 'Untitled'}</h2>
+              {isInternal && (
+                <span className="shrink-0 flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                  <Lock size={10} /> INTERNAL
+                </span>
+              )}
+            </div>
             {note.date && (
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{formatDate(note.date)}</p>
             )}
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* Mode switcher (when both exist) */}
+            {bothExist && (
+              <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
+                <button
+                  onClick={() => setViewMode('standard')}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${viewMode === 'standard' ? 'bg-white dark:bg-gray-600 shadow text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+                >Standard</button>
+                <button
+                  onClick={() => setViewMode('internal')}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1 ${viewMode === 'internal' ? 'bg-white dark:bg-gray-600 shadow text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+                >
+                  <Lock size={10} /> Internal
+                </button>
+              </div>
+            )}
+
             {/* Export format picker */}
             <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5">
               {FORMATS.map((f) => (
@@ -101,7 +133,7 @@ export default function NoteViewModal({ note, onEdit, onClose }) {
 
         {/* Preview body */}
         <div className="flex-1 overflow-y-auto py-6">
-          <A4Preview note={note} template={resolvedTemplate} t={exportT} />
+          <A4Preview note={noteForView} template={resolvedTemplate} t={exportT} isInternal={isInternal} />
         </div>
       </div>
     </div>

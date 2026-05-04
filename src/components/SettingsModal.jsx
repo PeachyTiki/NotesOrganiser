@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react'
-import { X, User, Globe, Palette, Download, Database, Upload, Trash2, CheckCircle2, AlertTriangle, Brain } from 'lucide-react'
+import { X, User, Globe, Palette, Download, Database, Upload, Trash2, CheckCircle2, AlertTriangle, Brain, Lock } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { LANGUAGES, getSystemLanguage } from '../utils/i18n'
+import Toggle from './Toggle'
 
 const EXPORT_FORMATS = [
   { value: 'pdf', label: 'PDF (.pdf)' },
@@ -269,6 +270,24 @@ export default function SettingsModal({ onClose }) {
                     : `Include the ${form.notesContextDepth ?? 4} most recent prior meetings from the same series as read-only context in AI prompts (0–16).`}
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* Internal Notes */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Lock size={14} className="text-accent" />
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Internal Notes</p>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              When enabled, each meeting note can have a separate internal version — for internal team use only, with its own template and sections. Disabling hides the feature everywhere but preserves all data.
+            </p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Enable Internal Notes</span>
+              <Toggle
+                checked={!!form.internalNotesEnabled}
+                onChange={(val) => set('internalNotesEnabled', val)}
+              />
             </div>
           </div>
 

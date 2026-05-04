@@ -147,7 +147,8 @@ function AIContextButton({ notes, label, scope, iconSize = 12 }) {
 }
 
 export default function LibraryPage() {
-  const { meetingNotes, recurringMeetings, templates, saveMeetingNote, deleteMeetingNote } = useApp()
+  const { meetingNotes, recurringMeetings, templates, saveMeetingNote, deleteMeetingNote, settings } = useApp()
+  const internalNotesEnabled = !!settings?.internalNotesEnabled
   const [editingNote, setEditingNote] = useState(null)
   const [viewingNote, setViewingNote] = useState(null)
   const [search, setSearch] = useState('')
@@ -158,6 +159,7 @@ export default function LibraryPage() {
   const [filterEventType, setFilterEventType] = useState('')
   const [filterPendingActions, setFilterPendingActions] = useState(false)
   const [filterHasTopics, setFilterHasTopics] = useState(false)
+  const [filterMode, setFilterMode] = useState('all')
   const [openCustomers, setOpenCustomers] = useState({})
   const [openSubgroups, setOpenSubgroups] = useState({})
 
@@ -222,8 +224,12 @@ export default function LibraryPage() {
     if (filterHasTopics) list = list.filter((n) =>
       (n.sections || []).some((s) => s.type === 'topics' && (s.items || []).some((i) => i.topic))
     )
+    if (internalNotesEnabled && filterMode !== 'all') {
+      if (filterMode === 'standard') list = list.filter((n) => n.modes?.standard !== false)
+      if (filterMode === 'internal') list = list.filter((n) => !!n.modes?.internal)
+    }
     return list
-  }, [meetingNotes, search, dateFrom, dateTo, filterCustomer, filterEventType, filterPendingActions, filterHasTopics, rmMap])
+  }, [meetingNotes, search, dateFrom, dateTo, filterCustomer, filterEventType, filterPendingActions, filterHasTopics, filterMode, internalNotesEnabled, rmMap])
 
   // Build 2-level hierarchy: Customer > (RecurringMeeting | One-off Notes)
   const libraryGroups = useMemo(() => {
@@ -283,11 +289,12 @@ export default function LibraryPage() {
       })
   }, [filteredNotes, rmMap, sortBy])
 
-  const hasFilters = search || dateFrom || dateTo || filterCustomer || filterEventType || filterPendingActions || filterHasTopics
+  const hasFilters = search || dateFrom || dateTo || filterCustomer || filterEventType || filterPendingActions || filterHasTopics || filterMode !== 'all'
   const clearFilters = () => {
     setSearch(''); setDateFrom(''); setDateTo('')
     setFilterCustomer(''); setFilterEventType('')
     setFilterPendingActions(false); setFilterHasTopics(false)
+    setFilterMode('all')
   }
 
   const toggleCustomer = (name) => setOpenCustomers((s) => ({ ...s, [name]: !s[name] }))
@@ -422,6 +429,23 @@ export default function LibraryPage() {
           >
             Has open topics
           </button>
+          {internalNotesEnabled && (
+            <>
+              {['all', 'standard', 'internal'].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setFilterMode(m)}
+                  className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                    filterMode === m
+                      ? 'bg-accent-light dark:bg-accent-light border-accent/30 text-accent'
+                      : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
+                  }`}
+                >
+                  {m === 'all' ? 'All modes' : m === 'standard' ? 'Standard only' : 'Internal only'}
+                </button>
+              ))}
+            </>
+          )}
         </div>
 
         {/* Date range */}
@@ -550,6 +574,7 @@ export default function LibraryPage() {
                                       deleteMeetingNote(note.id)
                                     }
                                   }}
+                                  internalNotesEnabled={internalNotesEnabled}
                                 />
                               ))}
                             </div>
@@ -649,7 +674,7 @@ function NoteExportDropdown({ note }) {
   )
 }
 
-function NoteRow({ note, onView, onEdit, onDelete }) {
+function NoteRow({ note, onView, onEdit, onDelete, internalNotesEnabled = false }) {
   const { saveMeetingNote } = useApp()
   const [renaming, setRenaming] = useState(false)
   const [renameVal, setRenameVal] = useState('')
@@ -754,6 +779,16 @@ function NoteRow({ note, onView, onEdit, onDelete }) {
                   </span>
                 )}
               </div>
+              {internalNotesEnabled && (
+                <div className="flex items-center gap-1 shrink-0">
+                  {note.modes?.standard !== false && (
+                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400" title="Has standard note">S</span>
+                  )}
+                  {note.modes?.internal && (
+                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800" title="Has internal note">I</span>
+                  )}
+                </div>
+              )}
               {pendingCount > 0 && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setActionsOpen((v) => !v) }}

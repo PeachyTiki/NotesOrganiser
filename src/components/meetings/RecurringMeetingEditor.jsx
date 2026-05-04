@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, Trash2, Globe } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
 import { LANGUAGES, getSystemLanguage } from '../../utils/i18n'
+import Toggle from '../Toggle'
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -37,6 +38,7 @@ function emptyMeeting(settings) {
     participants: [self],
     templateId: '',
     language: '',
+    defaultModes: { standard: true, internal: false },
     createdAt: new Date().toISOString(),
   }
 }
@@ -50,7 +52,8 @@ function ordSuffix(d) {
 }
 
 export default function RecurringMeetingEditor({ meeting, prefilledCustomer, onClose }) {
-  const { saveRecurringMeeting, deleteRecurringMeeting, templates, settings, customers } = useApp()
+  const { saveRecurringMeeting, deleteRecurringMeeting, templates, settings, customers, settings: appSettings } = useApp()
+  const internalNotesEnabled = !!appSettings?.internalNotesEnabled
   const [form, setForm] = useState(
     meeting
       ? { ...meeting, schedule: meeting.schedule || { type: 'none' }, participants: meeting.participants?.map((p) => ({ ...p })) || [] }
@@ -262,6 +265,46 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, onC
             />
           </div>
         </div>
+
+        {/* Default note modes (only shown when Internal Notes enabled) */}
+        {internalNotesEnabled && (
+          <div className="card p-4 space-y-3">
+            <div>
+              <h2 className="section-title text-base">Default Note Modes</h2>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                Which note modes are active by default for new notes in this series.
+              </p>
+            </div>
+            <div className="flex items-center justify-between py-0.5">
+              <div>
+                <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">Standard</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">Customer-facing note</p>
+              </div>
+              <Toggle
+                checked={form.defaultModes?.standard !== false}
+                onChange={(val) => {
+                  const next = { standard: val, internal: form.defaultModes?.internal ?? false }
+                  if (!next.standard && !next.internal) return
+                  set('defaultModes', next)
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-between py-0.5">
+              <div>
+                <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">Internal</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">Internal team version</p>
+              </div>
+              <Toggle
+                checked={!!(form.defaultModes?.internal)}
+                onChange={(val) => {
+                  const next = { standard: form.defaultModes?.standard !== false, internal: val }
+                  if (!next.standard && !next.internal) return
+                  set('defaultModes', next)
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Default template + language */}
         <div className="card p-4 space-y-3">

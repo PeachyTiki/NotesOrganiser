@@ -307,7 +307,7 @@ function SectionBlock({ section, bannerColor, t, isFirst }) {
   return null
 }
 
-export default function NoteExportCanvas({ note, template, t }) {
+export default function NoteExportCanvas({ note, template, t, isInternal = false }) {
   const bannerColor = template?.bannerColor || '#ff0000'
   const fontFamily = template?.fontFamily || 'Inter'
   const logo = template?.logo
@@ -349,13 +349,18 @@ export default function NoteExportCanvas({ note, template, t }) {
         #note-export-canvas p{margin:0.1em 0}
       `}</style>
       {/* Banner */}
-      <div style={{ backgroundColor: bannerColor, padding: '0 24px', height: 56, display: 'flex', alignItems: 'center' }}>
+      <div style={{ backgroundColor: bannerColor, padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', position: 'relative' }}>
         {logo?.show && logo?.data ? (
           <div style={{ display: 'flex', width: '100%', justifyContent: logoPos === 'top-right' ? 'flex-end' : logoPos === 'top-center' ? 'center' : 'flex-start' }}>
             <img src={logo.data} alt="Logo" style={{ height: 36, objectFit: 'contain' }} />
           </div>
         ) : (
           <span style={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>{tFn('meetingNotes')}</span>
+        )}
+        {isInternal && (
+          <div style={{ position: 'absolute', top: 10, right: 20, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 4, padding: '3px 10px' }}>
+            <span style={{ color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase' }}>INTERNAL</span>
+          </div>
         )}
       </div>
 
