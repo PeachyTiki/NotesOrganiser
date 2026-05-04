@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Plus, FileEdit, ChevronRight, ChevronDown, Search, Sparkles,
-  Folder, FolderOpen, Pencil, Trash2, Check, X, Building2, ArrowUpDown,
+  Folder, FolderOpen, Pencil, Trash2, Check, X, Building2, ArrowUpDown, BookMarked,
 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
 import RecurringMeetingEditor, { scheduleLabel } from './RecurringMeetingEditor'
 import MeetingNoteEditor from './MeetingNoteEditor'
+import MasterNotesModal from '../MasterNotesModal'
 
 function isScheduledToday(schedule) {
   if (!schedule || !schedule.type || schedule.type === 'none') return false
@@ -35,16 +36,24 @@ function isScheduledToday(schedule) {
   return false
 }
 
+function formatDate(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr + 'T00:00:00')
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
 export default function MeetingsPage() {
   const {
     recurringMeetings, meetingNotes, customers,
-    saveCustomer, deleteCustomer, saveRecurringMeeting,
+    saveCustomer, deleteCustomer, saveRecurringMeeting, t,
   } = useApp()
 
   const [view, setView] = useState('list')
   const [editingMeeting, setEditingMeeting] = useState(null)
   const [prefilledCustomer, setPrefilledCustomer] = useState(null)
   const [noteConfig, setNoteConfig] = useState(null)
+  const [masterNotesCustomer, setMasterNotesCustomer] = useState(null)
+  const [filterDrafts, setFilterDrafts] = useState(false)
   const [search, setSearch] = useState('')
   const [meetingSort, setMeetingSort] = useState('name_asc')
   const [filterHasNotes, setFilterHasNotes] = useState(false)
@@ -69,7 +78,18 @@ export default function MeetingsPage() {
   const noteCountById = useMemo(() => {
     const m = {}
     meetingNotes.forEach((n) => {
-      if (n.recurringMeetingId) m[n.recurringMeetingId] = (m[n.recurringMeetingId] || 0) + 1
+      if (n.recurringMeetingId && !n.isDraft) m[n.recurringMeetingId] = (m[n.recurringMeetingId] || 0) + 1
+    })
+    return m
+  }, [meetingNotes])
+
+  const draftNotesByMeetingId = useMemo(() => {
+    const m = {}
+    meetingNotes.forEach((n) => {
+      if (n.isDraft && n.recurringMeetingId) {
+        if (!m[n.recurringMeetingId]) m[n.recurringMeetingId] = []
+        m[n.recurringMeetingId].push(n)
+      }
     })
     return m
   }, [meetingNotes])
@@ -77,7 +97,7 @@ export default function MeetingsPage() {
   const latestNoteById = useMemo(() => {
     const m = {}
     meetingNotes.forEach((n) => {
-      if (!n.recurringMeetingId) return
+      if (!n.recurringMeetingId || n.isDraft) return
       const ts = n.updatedAt || n.createdAt || n.date || ''
       if (!m[n.recurringMeetingId] || ts > m[n.recurringMeetingId]) m[n.recurringMeetingId] = ts
     })
@@ -90,6 +110,19 @@ export default function MeetingsPage() {
     customers.forEach((c) => { m[c.name.toLowerCase()] = c })
     return m
   }, [customers])
+
+  // All notes grouped by customer name (for AI context export in master notes)
+  const notesByCustomer = useMemo(() => {
+    const m = {}
+    meetingNotes.forEach((n) => {
+      const custName = (n.recurringMeetingId && recurringMeetings.find((r) => r.id === n.recurringMeetingId)?.customer)
+        || n.customer || ''
+      if (!custName) return
+      if (!m[custName]) m[custName] = []
+      m[custName].push(n)
+    })
+    return m
+  }, [meetingNotes, recurringMeetings])
 
   // Filter meetings by search
   const filteredMeetings = useMemo(() => {
@@ -136,6 +169,7 @@ export default function MeetingsPage() {
       let out = list
       if (filterHasNotes) out = out.filter((m) => (noteCountById[m.id] || 0) > 0)
       if (filterToday) out = out.filter((m) => isScheduledToday(m.schedule))
+      if (filterDrafts) out = out.filter((m) => (draftNotesByMeetingId[m.id] || []).length > 0)
       return out
     }
 
@@ -146,7 +180,7 @@ export default function MeetingsPage() {
       })),
       unassigned: sortMeetings(applyFilters(unassigned)),
     }
-  }, [customers, filteredMeetings, customerByName, meetingSort, filterHasNotes, filterToday, noteCountById, latestNoteById])
+  }, [customers, filteredMeetings, customerByName, meetingSort, filterHasNotes, filterToday, filterDrafts, noteCountById, latestNoteById, draftNotesByMeetingId])
 
   // Today's meetings (across all customers)
   const todayMeetings = useMemo(
@@ -170,6 +204,8 @@ export default function MeetingsPage() {
     return (
       <MeetingNoteEditor
         recurringMeetingId={noteConfig?.recurringMeetingId}
+        existingNote={noteConfig?.existingNote}
+        prefilledCustomer={noteConfig?.prefilledCustomer}
         onClose={() => { setView('list'); setNoteConfig(null) }}
       />
     )
@@ -322,9 +358,19 @@ export default function MeetingsPage() {
               >
                 Today only
               </button>
-              {(filterHasNotes || filterToday || search) && (
+              <button
+                onClick={() => setFilterDrafts((v) => !v)}
+                className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                  filterDrafts
+                    ? 'bg-amber-50 dark:bg-amber-950 border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400'
+                    : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
+                }`}
+              >
+                Drafts
+              </button>
+              {(filterHasNotes || filterToday || filterDrafts || search) && (
                 <button
-                  onClick={() => { setSearch(''); setFilterHasNotes(false); setFilterToday(false) }}
+                  onClick={() => { setSearch(''); setFilterHasNotes(false); setFilterToday(false); setFilterDrafts(false) }}
                   className="text-xs text-accent hover:underline flex items-center gap-1 ml-auto"
                 >
                   <X size={11} /> Clear
@@ -350,8 +396,11 @@ export default function MeetingsPage() {
                     meeting={mtg}
                     isToday
                     noteCount={noteCountById[mtg.id] || 0}
+                    draftNotes={draftNotesByMeetingId[mtg.id] || []}
+                    showDrafts={filterDrafts}
                     onEdit={() => { setEditingMeeting(mtg); setPrefilledCustomer(null); setView('editRecurring') }}
                     onWriteNote={() => { setNoteConfig({ recurringMeetingId: mtg.id }); setView('newNote') }}
+                    onEditDraft={(draft) => { setNoteConfig({ existingNote: draft }); setView('newNote') }}
                   />
                 ))}
               </div>
@@ -407,6 +456,13 @@ export default function MeetingsPage() {
                         {meetings.length} meeting{meetings.length !== 1 ? 's' : ''}
                       </span>
                       <button
+                        onClick={() => setMasterNotesCustomer(customer)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-accent hover:bg-accent-light dark:hover:bg-accent-light transition-colors shrink-0"
+                        title={t('masterNotes')}
+                      >
+                        <BookMarked size={13} /> {t('masterNotes')}
+                      </button>
+                      <button
                         onClick={() => { setEditingMeeting(null); setPrefilledCustomer(customer.name); setView('editRecurring') }}
                         className="p-1.5 text-gray-400 hover:text-accent transition-colors shrink-0"
                         title="New recurring meeting"
@@ -454,12 +510,23 @@ export default function MeetingsPage() {
                             meeting={mtg}
                             isToday={isScheduledToday(mtg.schedule)}
                             noteCount={noteCountById[mtg.id] || 0}
+                            draftNotes={draftNotesByMeetingId[mtg.id] || []}
+                            showDrafts={filterDrafts}
                             onEdit={() => { setEditingMeeting(mtg); setPrefilledCustomer(null); setView('editRecurring') }}
                             onWriteNote={() => { setNoteConfig({ recurringMeetingId: mtg.id }); setView('newNote') }}
+                            onEditDraft={(draft) => { setNoteConfig({ existingNote: draft }); setView('newNote') }}
                           />
                         ))}
                       </div>
                     )}
+                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                      <button
+                        onClick={() => { setNoteConfig({ prefilledCustomer: customer.name }); setView('newNote') }}
+                        className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-accent transition-colors"
+                      >
+                        <FileEdit size={13} /> + {t('miscMeetings')}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -506,8 +573,11 @@ export default function MeetingsPage() {
                           meeting={mtg}
                           isToday={isScheduledToday(mtg.schedule)}
                           noteCount={noteCountById[mtg.id] || 0}
+                          draftNotes={draftNotesByMeetingId[mtg.id] || []}
+                          showDrafts={filterDrafts}
                           onEdit={() => { setEditingMeeting(mtg); setPrefilledCustomer(null); setView('editRecurring') }}
                           onWriteNote={() => { setNoteConfig({ recurringMeetingId: mtg.id }); setView('newNote') }}
+                          onEditDraft={(draft) => { setNoteConfig({ existingNote: draft }); setView('newNote') }}
                         />
                       ))}
                     </div>
@@ -562,16 +632,24 @@ export default function MeetingsPage() {
           </div>
         </>
       )}
+      {masterNotesCustomer && (
+        <MasterNotesModal
+          customer={masterNotesCustomer}
+          customerNotes={notesByCustomer[masterNotesCustomer.name] || []}
+          onClose={() => setMasterNotesCustomer(null)}
+        />
+      )}
     </div>
   )
 }
 
-function RecurringMeetingCard({ meeting, isToday, noteCount, onEdit, onWriteNote }) {
+function RecurringMeetingCard({ meeting, isToday, noteCount, draftNotes = [], showDrafts = false, onEdit, onWriteNote, onEditDraft }) {
   const enabledParticipants = (meeting.participants || []).filter((p) => p.enabled !== false)
   const label = scheduleLabel(meeting.schedule)
+  const visibleDrafts = showDrafts ? draftNotes : draftNotes.slice(0, 3)
 
   return (
-    <div className={`card p-4 hover:shadow-md transition-shadow ${isToday ? 'ring-2 ring-accent/40 ring-offset-1' : ''}`}>
+    <div className={`card p-4 hover:shadow-md transition-shadow ${isToday ? 'ring-2 ring-accent/40 ring-offset-1' : draftNotes.length > 0 ? 'ring-1 ring-amber-200 dark:ring-amber-800/50' : ''}`}>
       <div className="flex items-start justify-between mb-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
@@ -631,6 +709,36 @@ function RecurringMeetingCard({ meeting, isToday, noteCount, onEdit, onWriteNote
       >
         <FileEdit size={13} /> Write Note
       </button>
+
+      {draftNotes.length > 0 && (
+        <div className="mt-2 space-y-1">
+          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+            <span className="text-xs">●</span> {draftNotes.length} draft{draftNotes.length !== 1 ? 's' : ''}
+          </p>
+          {visibleDrafts.map((draft) => (
+            <div
+              key={draft.id}
+              className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50"
+            >
+              <div className="min-w-0 flex-1">
+                <span className="text-xs font-medium text-amber-700 dark:text-amber-400 truncate block">
+                  {draft.title || 'Untitled Draft'}
+                </span>
+                <span className="text-xs text-amber-600/70 dark:text-amber-500/70">{formatDate(draft.date)}</span>
+              </div>
+              <button
+                onClick={() => onEditDraft(draft)}
+                className="shrink-0 text-xs px-2 py-1 rounded-md bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors"
+              >
+                Edit
+              </button>
+            </div>
+          ))}
+          {!showDrafts && draftNotes.length > 3 && (
+            <p className="text-xs text-amber-500 dark:text-amber-500 text-center">+{draftNotes.length - 3} more (enable Drafts filter)</p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
