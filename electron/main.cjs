@@ -1,4 +1,5 @@
 const { app, BrowserWindow, shell, ipcMain, Menu } = require('electron')
+
 const path = require('path')
 const fs = require('fs')
 
@@ -72,6 +73,18 @@ function createWindow() {
     }
   })
 }
+
+// ── Find-in-page IPC ─────────────────────────────────────────────────────────
+ipcMain.on('find-in-page', (event, text, forward, findNext) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win || !text) return
+  win.webContents.findInPage(text, { forward: forward !== false, findNext: !!findNext })
+})
+ipcMain.on('stop-find-in-page', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win) return
+  win.webContents.stopFindInPage('clearSelection')
+})
 
 // ── Backup IPC ────────────────────────────────────────────────────────────────
 ipcMain.handle('save-backup', async (_event, jsonString) => {

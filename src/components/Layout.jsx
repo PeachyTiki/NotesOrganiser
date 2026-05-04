@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react'
 import { Moon, Sun, FileText, Users, BookOpen, Settings } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import SettingsModal from './SettingsModal'
+import FindBar from './FindBar'
 
 const NAV = [
   { id: 'meetings', label: 'Meetings', icon: Users },
@@ -93,6 +94,7 @@ export default function Layout({ children }) {
       </footer>
 
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      <FindBar />
     </div>
   )
 }
