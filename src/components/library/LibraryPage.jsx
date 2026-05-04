@@ -2,13 +2,14 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import {
   BookOpen, ChevronRight, ChevronDown, Calendar,
   Folder, FolderOpen, FileDown, Search, Copy, Pencil, Trash2,
-  ArrowUpDown, FileEdit, X, Check, Brain, CheckSquare, Circle, SlidersHorizontal,
+  ArrowUpDown, FileEdit, X, Check, Brain, CheckSquare, Circle, SlidersHorizontal, Eye,
 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
 import { bulkExportToZip, exportSingleNote, formatDateForFilename, downloadBlob } from '../../utils/export'
 import { buildContextAIPrompt } from '../../utils/aiPrompt'
 import MeetingNoteEditor from '../meetings/MeetingNoteEditor'
+import NoteViewModal from './NoteViewModal'
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
@@ -148,6 +149,7 @@ function AIContextButton({ notes, label, scope, iconSize = 12 }) {
 export default function LibraryPage() {
   const { meetingNotes, recurringMeetings, templates, saveMeetingNote, deleteMeetingNote } = useApp()
   const [editingNote, setEditingNote] = useState(null)
+  const [viewingNote, setViewingNote] = useState(null)
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -541,6 +543,7 @@ export default function LibraryPage() {
                                 <NoteRow
                                   key={note.id}
                                   note={note}
+                                  onView={() => setViewingNote(note)}
                                   onEdit={() => setEditingNote(note)}
                                   onDelete={() => {
                                     if (confirm(`Delete "${note.title}"? This cannot be undone.`)) {
@@ -560,6 +563,14 @@ export default function LibraryPage() {
             )
           })}
         </div>
+      )}
+
+      {viewingNote && (
+        <NoteViewModal
+          note={viewingNote}
+          onEdit={() => setEditingNote(viewingNote)}
+          onClose={() => setViewingNote(null)}
+        />
       )}
     </div>
   )
@@ -638,7 +649,7 @@ function NoteExportDropdown({ note }) {
   )
 }
 
-function NoteRow({ note, onEdit, onDelete }) {
+function NoteRow({ note, onView, onEdit, onDelete }) {
   const { saveMeetingNote } = useApp()
   const [renaming, setRenaming] = useState(false)
   const [renameVal, setRenameVal] = useState('')
@@ -760,6 +771,16 @@ function NoteRow({ note, onEdit, onDelete }) {
             </div>
           )}
         </div>
+
+        {!renaming && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onView() }}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-accent bg-accent-light dark:bg-accent-light hover:bg-accent hover:text-white shrink-0 transition-colors"
+            title="View note"
+          >
+            <Eye size={11} /> View
+          </button>
+        )}
 
         {!renaming && (
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
