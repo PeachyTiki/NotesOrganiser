@@ -24,6 +24,7 @@ const defaultState = {
     accentDark: DEFAULT_ACCENT_DARK,
     exportFormat: 'pdf',
     aiTone: { formality: 'professional', conciseness: 'balanced', customInstructions: '' },
+    notesContextDepth: 4,
   },
 }
 

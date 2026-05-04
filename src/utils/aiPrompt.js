@@ -152,9 +152,34 @@ export function importAITextResponse(text, currentSections) {
 
 // ─── Section-scoped prompt (for the Notes section type) ───────────────────────
 
-export function buildSectionAIPrompt(section, note, allMeetingNotes, toneSettings) {
+export function buildSectionAIPrompt(section, note, allMeetingNotes, toneSettings, contextDepth = 4) {
   const langName = resolveLanguageName(note.language)
   const hasTranscript = !!(section.content?.trim())
+
+  // Take the N most recent prior notes in this series, sorted oldest→newest so the AI reads them in order.
+  // Tie-break by updatedAt so manually edited older notes reflect their latest content.
+  const previousSessions = contextDepth > 0 && note.recurringMeetingId
+    ? allMeetingNotes
+        .filter(
+          (n) =>
+            n.recurringMeetingId === note.recurringMeetingId &&
+            n.id !== note.id,
+        )
+        .sort((a, b) => {
+          const d = (a.date || '').localeCompare(b.date || '')
+          return d !== 0 ? d : (a.updatedAt || '').localeCompare(b.updatedAt || '')
+        })
+        .slice(-contextDepth)
+        .map((n) => ({
+          date: n.date,
+          title: n.title || 'Untitled',
+          participants: (n.participants || [])
+            .filter((p) => p.enabled !== false && p.name)
+            .map((p) => ({ name: p.name, role: p.role || '' })),
+          content: serializeSections(n.sections),
+        }))
+    : []
+
   return {
     _version: '1',
     _type: 'notes_section_prompt',
@@ -162,6 +187,15 @@ export function buildSectionAIPrompt(section, note, allMeetingNotes, toneSetting
       task: hasTranscript
         ? `The "${section.label || 'Notes'}" section contains raw notes or a transcript written during the meeting (see current_section.transcript). Clean it up into well-structured, formatted notes.`
         : `The "${section.label || 'Notes'}" section has no transcript yet. Ask the user to share their meeting notes or transcript in this chat — do not generate placeholder content without it.`,
+      context_rule: previousSessions.length > 0
+        ? [
+            `CRITICAL CONTEXT RULE: The previous_sessions field contains the ${previousSessions.length} most recent prior meeting(s) in this series. They are READ-ONLY BACKGROUND CONTEXT.`,
+            `Use them ONLY to understand recurring topics, running acronyms, ongoing decisions, open action items, and relationships between participants.`,
+            `DO NOT write notes for previous sessions. DO NOT copy or re-summarise content from previous sessions into your output.`,
+            `DO NOT reference previous sessions explicitly (e.g. "as discussed last week…") unless it appears in the current transcript.`,
+            `Your output covers ONLY the current session on ${note.date || 'today'}.`,
+          ].join(' ')
+        : undefined,
       output_language: langName
         ? `Write ALL output content in ${langName}. This applies regardless of what language the transcript or raw notes are in.`
         : undefined,
@@ -186,22 +220,7 @@ export function buildSectionAIPrompt(section, note, allMeetingNotes, toneSetting
         .filter((p) => p.enabled !== false && p.name)
         .map((p) => ({ name: p.name, role: p.role || '', firm: p.firm || '' })),
     },
-    previous_sessions: allMeetingNotes
-      .filter(
-        (n) =>
-          n.recurringMeetingId &&
-          n.recurringMeetingId === note.recurringMeetingId &&
-          n.id !== note.id,
-      )
-      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-      .slice(-5)
-      .map((n) => ({
-        date: n.date,
-        title: n.title,
-        sections: (n.sections || [])
-          .filter((s) => s.type === 'text' || s.type === 'notes')
-          .map((s) => ({ label: s.label || '', content: s.content || '' })),
-      })),
+    previous_sessions: previousSessions,
     current_section: {
       id: section.id,
       label: section.label || 'Notes',

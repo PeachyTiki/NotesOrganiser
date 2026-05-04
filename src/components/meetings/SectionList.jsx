@@ -171,7 +171,7 @@ function SortableSection({ section, onChange, onRemove, t, onOpenTextEditor, col
   )
 }
 
-export default function SectionList({ sections, onChange, t, note, meetingNotes, defaultTone }) {
+export default function SectionList({ sections, onChange, t, note, meetingNotes, defaultTone, contextDepth = 4 }) {
   const [addOpen, setAddOpen] = useState(false)
   const [textEditorFor, setTextEditorFor] = useState(null)
   const [collapsed, setCollapsed] = useState({})
@@ -224,7 +224,7 @@ export default function SectionList({ sections, onChange, t, note, meetingNotes,
   const textEditorSection = textEditorFor ? sections.find((s) => s.id === textEditorFor) : null
 
   return (
-    <SectionContext.Provider value={{ note, meetingNotes, defaultTone }}>
+    <SectionContext.Provider value={{ note, meetingNotes, defaultTone, contextDepth }}>
     <div className="space-y-3">
       <DndContext
         sensors={sensors}
