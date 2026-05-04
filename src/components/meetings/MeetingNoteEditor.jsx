@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { ArrowLeft, Save, Download, RefreshCw, Globe, Plus, Trash2, Eye, EyeOff, Clock, ChevronRight, ChevronDown, CheckSquare, MessageSquare, LayoutTemplate, X } from 'lucide-react'
+import { ArrowLeft, Save, Download, RefreshCw, Globe, Plus, Trash2, Clock, ChevronRight, ChevronDown, CheckSquare, MessageSquare, LayoutTemplate, X } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import html2canvas from 'html2canvas'
 import { useApp } from '../../context/AppContext'
