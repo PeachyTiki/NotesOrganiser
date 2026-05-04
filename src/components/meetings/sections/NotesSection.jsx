@@ -1,15 +1,18 @@
-import React, { useState, useRef, useContext } from 'react'
+import React, { useState, useRef, useContext, useEffect } from 'react'
 import { Brain, Download, ChevronDown, ChevronRight, Settings2 } from 'lucide-react'
 import { SectionContext } from '../SectionList'
 import { buildSectionAIPrompt, importSectionJsonResponse } from '../../../utils/aiPrompt'
 import { markdownToHtml, htmlToPlainText } from '../../../utils/markdownToHtml'
 import RichTextEditor from './RichTextEditor'
 import { downloadBlob, formatDateForFilename } from '../../../utils/export'
+import { useApp } from '../../../context/AppContext'
 
 const DEFAULT_TONE = { formality: 'professional', conciseness: 'balanced', customInstructions: '' }
 
-export default function NotesSection({ section, onChange }) {
-  const { note, meetingNotes, defaultTone, contextDepth } = useContext(SectionContext) || {}
+export default function NotesSection({ section, onChange, isFirstNotesSection }) {
+  const { note, meetingNotes, defaultTone, contextDepth, openNotesToken } = useContext(SectionContext) || {}
+  const { settings } = useApp()
+  const aiPromptMode = settings?.aiPromptMode || 'download'
 
   // Tone is persisted in section.tone; initialise with section override → serie default → app default
   const [tone, setToneLocal] = useState(() => ({
@@ -25,6 +28,16 @@ export default function NotesSection({ section, onChange }) {
   const [success, setSuccess] = useState('')
   const errorTimer = useRef(null)
   const successTimer = useRef(null)
+  const selfRef = useRef(null)
+  const openedForTokenRef = useRef(null)
+
+  // Respond to token from Notes button in top bar (single-mode: scroll here + open import panel)
+  useEffect(() => {
+    if (!openNotesToken || openNotesToken === openedForTokenRef.current || !isFirstNotesSection) return
+    openedForTokenRef.current = openNotesToken
+    selfRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    setImportOpen(true)
+  }, [openNotesToken, isFirstNotesSection])
 
   const flash = (setter, timerRef, msg) => {
     setter(msg)
@@ -40,10 +53,19 @@ export default function NotesSection({ section, onChange }) {
 
   const handleExport = () => {
     try {
-      const prompt = buildSectionAIPrompt(section, note || {}, meetingNotes || [], tone, contextDepth ?? 4)
-      const blob = new Blob([JSON.stringify(prompt, null, 2)], { type: 'application/json' })
-      const dateStr = formatDateForFilename(note?.date)
-      downloadBlob(blob, `ai_prompt_${dateStr}_${(section.label || 'notes').replace(/\s+/g, '_').slice(0, 30)}.json`)
+      const prompt = buildSectionAIPrompt(section, note || {}, meetingNotes || [], tone, contextDepth ?? 4, aiPromptMode)
+      const json = JSON.stringify(prompt, null, 2)
+      if (aiPromptMode === 'clipboard') {
+        navigator.clipboard.writeText(json).then(() => {
+          flash(setSuccess, successTimer, 'Prompt copied to clipboard — paste it in your AI assistant.')
+        }).catch(() => {
+          flash(setError, errorTimer, 'Failed to copy to clipboard.')
+        })
+      } else {
+        const blob = new Blob([json], { type: 'application/json' })
+        const dateStr = formatDateForFilename(note?.date)
+        downloadBlob(blob, `ai_prompt_${dateStr}_${(section.label || 'notes').replace(/\s+/g, '_').slice(0, 30)}.json`)
+      }
     } catch (err) {
       flash(setError, errorTimer, 'Export failed: ' + err.message)
     }
@@ -83,7 +105,7 @@ export default function NotesSection({ section, onChange }) {
   }[tone.conciseness] || 'Balanced'
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" ref={selfRef}>
       {/* Main editable area */}
       <RichTextEditor
         value={section.content || ''}
@@ -167,6 +189,20 @@ export default function NotesSection({ section, onChange }) {
         <div className="border border-gray-100 dark:border-gray-700 rounded-lg p-3 space-y-2.5">
           <div>
             <label className="label text-xs">Paste AI response</label>
+            {aiPromptMode === 'clipboard' && (
+              <button
+                onClick={() => {
+                  navigator.clipboard.readText().then((text) => {
+                    setPasteText(text)
+                  }).catch(() => {
+                    flash(setError, errorTimer, 'Could not read clipboard.')
+                  })
+                }}
+                className="btn-secondary flex items-center gap-1.5 text-xs py-1 px-3 w-full justify-center mb-2"
+              >
+                <Brain size={12} /> Paste from Clipboard
+              </button>
+            )}
             <textarea
               className="input text-xs font-mono resize-none w-full"
               rows={5}

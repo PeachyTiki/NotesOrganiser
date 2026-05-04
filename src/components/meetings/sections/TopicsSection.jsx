@@ -73,7 +73,7 @@ export default function TopicsSection({ section, onChange, t }) {
 
       {items.length === 0 && (
         <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-3">
-          No topics yet — click "+ Add Topic" to start
+          No {t('topics').toLowerCase()} yet
         </p>
       )}
 
@@ -81,7 +81,7 @@ export default function TopicsSection({ section, onChange, t }) {
         className="mt-3 text-sm text-accent hover:text-accent-dark flex items-center gap-1.5 font-medium"
         onClick={addItem}
       >
-        <Plus size={14} /> {t('topics') === 'Topics' ? 'Add Topic' : `+ ${t('topic')}`}
+        <Plus size={14} /> {t('topic')}
       </button>
     </div>
   )

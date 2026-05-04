@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain, Menu } = require('electron')
+const { app, BrowserWindow, shell, ipcMain, Menu, dialog } = require('electron')
 
 const path = require('path')
 const fs = require('fs')
@@ -109,6 +109,85 @@ ipcMain.handle('save-backup', async (_event, jsonString) => {
 
   fs.writeFileSync(filepath, jsonString, 'utf8')
   return { filename, folder: backupDir }
+})
+
+// ── Folder Sync IPC ───────────────────────────────────────────────────────────
+
+ipcMain.handle('select-folder', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  const result = await dialog.showOpenDialog(win, {
+    properties: ['openDirectory', 'createDirectory'],
+    title: 'Select Sync Destination Folder',
+  })
+  if (result.canceled || result.filePaths.length === 0) return null
+  return result.filePaths[0]
+})
+
+ipcMain.handle('write-file', async (_event, pathParts, filename, base64Data) => {
+  try {
+    const dir = path.join(...pathParts)
+    fs.mkdirSync(dir, { recursive: true })
+    const filePath = path.join(dir, filename)
+    const buffer = Buffer.from(base64Data, 'base64')
+    fs.writeFileSync(filePath, buffer)
+    return { ok: true, filePath }
+  } catch (err) {
+    return { ok: false, error: err.message }
+  }
+})
+
+ipcMain.handle('delete-file', async (_event, filePath) => {
+  try {
+    fs.unlinkSync(filePath)
+  } catch (err) {
+    if (err.code !== 'ENOENT') return { ok: false, error: err.message }
+  }
+  return { ok: true }
+})
+
+ipcMain.handle('check-paths-exist', async (_event, paths) => {
+  const results = {}
+  for (const p of (paths || [])) {
+    try { results[p] = fs.existsSync(p) && fs.statSync(p).isDirectory() }
+    catch { results[p] = false }
+  }
+  return results
+})
+
+ipcMain.handle('move-sync-folder', async (_event, oldDestPath, newDestPath, trackedPaths) => {
+  const isWin = process.platform === 'win32'
+  const normOld = path.normalize(oldDestPath)
+  const normNew = path.normalize(newDestPath)
+  const results = []
+  for (const rawPath of (trackedPaths || [])) {
+    const normPath = path.normalize(rawPath)
+    try {
+      if (!fs.existsSync(normPath)) {
+        results.push({ oldPath: rawPath, ok: false, reason: 'not_found' })
+        continue
+      }
+      const pathCmp = isWin ? normPath.toLowerCase() : normPath
+      const destCmp = isWin ? normOld.toLowerCase() : normOld
+      if (!pathCmp.startsWith(destCmp)) {
+        results.push({ oldPath: rawPath, ok: false, reason: 'path_mismatch' })
+        continue
+      }
+      const rel = normPath.slice(normOld.length)
+      const newPath = path.join(normNew, rel)
+      fs.mkdirSync(path.dirname(newPath), { recursive: true })
+      try {
+        fs.renameSync(normPath, newPath)
+      } catch {
+        // Cross-device: fall back to copy + delete
+        fs.copyFileSync(normPath, newPath)
+        try { fs.unlinkSync(normPath) } catch {}
+      }
+      results.push({ oldPath: rawPath, newPath, ok: true })
+    } catch (err) {
+      results.push({ oldPath: rawPath, ok: false, reason: err.message })
+    }
+  }
+  return results
 })
 
 app.whenReady().then(createWindow)

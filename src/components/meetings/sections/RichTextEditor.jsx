@@ -97,6 +97,9 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
     if (mod && !e.shiftKey && e.key === 'i') { e.preventDefault(); exec('italic'); return }
     if (mod && !e.shiftKey && e.key === 'u') { e.preventDefault(); exec('underline'); return }
     if (mod && e.shiftKey && e.key === '8')  { e.preventDefault(); exec('insertUnorderedList'); return }
+    // Undo/redo within the editor — use browser native execCommand so history stays in the editor
+    if (mod && !e.shiftKey && e.key === 'z') { e.preventDefault(); e.stopPropagation(); document.execCommand('undo'); emitChange(); return }
+    if (mod && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); e.stopPropagation(); document.execCommand('redo'); emitChange(); return }
 
     if (e.key === 'Tab') {
       e.preventDefault()

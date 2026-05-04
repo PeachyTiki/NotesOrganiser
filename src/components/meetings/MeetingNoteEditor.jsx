@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { ArrowLeft, Save, Download, RefreshCw, Globe, Plus, Trash2, Clock, ChevronRight, ChevronDown, CheckSquare, MessageSquare, LayoutTemplate, X, Lock } from 'lucide-react'
+import { ArrowLeft, Save, Download, RefreshCw, Globe, Plus, Trash2, Clock, ChevronRight, ChevronDown, CheckSquare, MessageSquare, LayoutTemplate, X, Lock, Brain } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import html2canvas from 'html2canvas'
 import { useApp } from '../../context/AppContext'
@@ -12,12 +12,18 @@ import {
   downloadDataURL,
   downloadBlob,
   formatDateForFilename,
+  renderNoteToPdfBuffer,
+  arrayBufferToBase64,
 } from '../../utils/export'
+import {
+  noteMatchesSync, noteFilename, notePathParts, syncFileKey,
+} from '../../utils/syncManager'
 import { makeT, getSystemLanguage, LANGUAGES } from '../../utils/i18n'
 import NoteExportCanvas from './NoteExportCanvas'
 import A4Preview from './A4Preview'
 import SectionList from './SectionList'
 import Toggle from '../Toggle'
+import NotesOverlay from './NotesOverlay'
 
 const EXPORT_FORMATS = [
   { value: 'pdf',  label: 'PDF (.pdf)' },
@@ -58,9 +64,9 @@ function copyStructureFromLastNote(sections) {
         .filter((item) => item.status !== 'complete')
         .map((item) => ({ ...item, status: item.status === 'new' ? 'open' : item.status })),
     }
-    if (s.type === 'actionItems') return {
+    if (s.type === 'tasks') return {
       ...s, id: uuid(),
-      items: (s.items || []).filter((item) => item.status !== 'done'),
+      items: (s.items || []).filter((item) => item.status !== 'complete'),
     }
     if (s.type === 'risks') return {
       ...s, id: uuid(),
@@ -96,9 +102,9 @@ function emptyNote(recurringMeeting, settings) {
     language: recurringMeeting?.language || getSystemLanguage(),
     participants: buildParticipants(recurringMeeting, settings),
     templateId: recurringMeeting?.templateId || '',
-    sections: [{ id: uuid(), type: 'text', label: '', content: '' }],
+    sections: [{ id: uuid(), type: 'notes', label: '', content: '' }, { id: uuid(), type: 'tasks', label: '', items: [] }],
     modes: defaultModes,
-    internalSections: [{ id: uuid(), type: 'text', label: '', content: '' }],
+    internalSections: [{ id: uuid(), type: 'notes', label: '', content: '' }, { id: uuid(), type: 'tasks', label: '', items: [] }],
     internalTemplateId: '',
     displayOptions: { showParticipants: true, showRoles: true, showFirms: true, showEventType: true },
     createdAt: new Date().toISOString(),
@@ -106,20 +112,27 @@ function emptyNote(recurringMeeting, settings) {
 }
 
 
-export default function MeetingNoteEditor({ recurringMeetingId, existingNote, onClose }) {
-  const { recurringMeetings, templates, saveMeetingNote, meetingNotes, settings, update, t, sectionPresets, saveSectionPreset, deleteSectionPreset } = useApp()
+export default function MeetingNoteEditor({ recurringMeetingId, existingNote, prefilledCustomer, onClose }) {
+  const { recurringMeetings, templates, saveMeetingNote, meetingNotes, settings, update, t, sectionPresets, saveSectionPreset, deleteSectionPreset, syncConfigs, syncFileMap, updateSyncFileMap } = useApp()
   const effectiveRecurringMeetingId = existingNote?.recurringMeetingId || recurringMeetingId
   const recurringMeeting = recurringMeetings.find((m) => m.id === effectiveRecurringMeetingId)
 
   const [note, setNote] = useState(() => {
     if (existingNote) return { ...existingNote }
     const base = emptyNote(recurringMeeting, settings)
+    if (prefilledCustomer) base.customer = prefilledCustomer
     if (effectiveRecurringMeetingId) {
       const lastNote = meetingNotes
-        .filter((n) => n.recurringMeetingId === effectiveRecurringMeetingId)
+        .filter((n) => n.recurringMeetingId === effectiveRecurringMeetingId && !n.isDraft)
         .sort((a, b) => (b.updatedAt || b.date || '').localeCompare(a.updatedAt || a.date || ''))[0]
       if (lastNote?.sections?.length) {
         base.sections = copyStructureFromLastNote(lastNote.sections)
+        if (!base.sections.some((s) => s.type === 'notes')) {
+          base.sections = [{ id: uuid(), type: 'notes', label: '', content: '' }, ...base.sections]
+        }
+        if (!base.sections.some((s) => s.type === 'tasks')) {
+          base.sections = [...base.sections, { id: uuid(), type: 'tasks', label: '', items: [] }]
+        }
       }
     }
     return base
@@ -142,10 +155,74 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
   const presetInputRef = useRef(null)
   const latestRef = useRef(null)
   const handleSaveRef = useRef(null)
+  const undoRef = useRef(null)
+  const redoRef = useRef(null)
+  const historyRef = useRef([])
+  const historyIndexRef = useRef(-1)
+  const isRestoringRef = useRef(false)
+  const textHistoryTimerRef = useRef(null)
 
-  const set = (key, value) => setNote((n) => ({ ...n, [key]: value }))
-  const setDisplayOption = (key, val) =>
+  const [dirty, setDirty] = useState(false)
+  const [showDiscardModal, setShowDiscardModal] = useState(false)
+  const [lastDraftSave, setLastDraftSave] = useState(null)
+  const [notesOverlayOpen, setNotesOverlayOpen] = useState(false)
+  const [openNotesToken, setOpenNotesToken] = useState(null)
+
+  const STRUCTURAL_KEYS = new Set(['sections', 'internalSections', 'modes', 'templateId', 'internalTemplateId'])
+
+  const pushHistorySnapshot = (snapshot) => {
+    const history = historyRef.current.slice(0, historyIndexRef.current + 1)
+    history.push(JSON.parse(JSON.stringify(snapshot)))
+    historyRef.current = history
+    historyIndexRef.current = history.length - 1
+  }
+
+  const set = (key, value) => {
+    if (isRestoringRef.current) {
+      setNote((n) => ({ ...n, [key]: value }))
+      return
+    }
+    setDirty(true)
+    setNote((n) => ({ ...n, [key]: value }))
+    if (STRUCTURAL_KEYS.has(key)) {
+      pushHistorySnapshot({ ...note, [key]: value })
+    } else {
+      clearTimeout(textHistoryTimerRef.current)
+      textHistoryTimerRef.current = setTimeout(() => {
+        if (isRestoringRef.current) return
+        pushHistorySnapshot(latestRef.current?.note || note)
+      }, 1500)
+    }
+  }
+
+  const undo = () => {
+    if (historyIndexRef.current <= 0) return
+    historyIndexRef.current--
+    const snapshot = historyRef.current[historyIndexRef.current]
+    if (!snapshot) return
+    const active = document.activeElement
+    if (active && active !== document.body) active.blur()
+    isRestoringRef.current = true
+    setNote(JSON.parse(JSON.stringify(snapshot)))
+    setTimeout(() => { isRestoringRef.current = false }, 50)
+  }
+
+  const redo = () => {
+    if (historyIndexRef.current >= historyRef.current.length - 1) return
+    historyIndexRef.current++
+    const snapshot = historyRef.current[historyIndexRef.current]
+    if (!snapshot) return
+    const active = document.activeElement
+    if (active && active !== document.body) active.blur()
+    isRestoringRef.current = true
+    setNote(JSON.parse(JSON.stringify(snapshot)))
+    setTimeout(() => { isRestoringRef.current = false }, 50)
+  }
+  const setDisplayOption = (key, val) => {
+    setDirty(true)
     setNote((n) => ({ ...n, displayOptions: { showParticipants: true, showRoles: true, showFirms: true, showEventType: true, ...(n.displayOptions || {}), [key]: val } }))
+  }
+
   const exportT = makeT(note.language)
   const resolvedTemplate = templates.find((tpl) => tpl.id === note.templateId) || null
   const isEditingExisting = !!existingNote
@@ -181,8 +258,12 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
 
   // Keep latest note + title in ref for interval
   useEffect(() => { latestRef.current = { note, effectiveTitle } })
-  // Keep handleSave in ref for keyboard shortcut
-  useEffect(() => { handleSaveRef.current = handleSave })
+  // Keep save/undo/redo in refs for keyboard shortcuts
+  useEffect(() => { handleSaveRef.current = handleSave; undoRef.current = undo; redoRef.current = redo })
+
+  // Initialize undo history on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { pushHistorySnapshot(note) }, [])
 
   // Close presets dropdown on outside click
   useEffect(() => {
@@ -199,12 +280,27 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
     return () => document.removeEventListener('mousedown', handler)
   }, [presetsOpen])
 
-  // Ctrl+S / Cmd+S to save
+  // Ctrl+S / Cmd+S to save; Ctrl+Z/Y for undo/redo (note-level snapshots)
   useEffect(() => {
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
         handleSaveRef.current?.()
+        return
+      }
+      const tag = (e.target?.tagName || '').toUpperCase()
+      const isNativeInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || e.target?.isContentEditable
+      if (!isNativeInput && (e.ctrlKey || e.metaKey)) {
+        if (e.key === 'z' && !e.shiftKey) {
+          e.preventDefault()
+          undoRef.current?.()
+          return
+        }
+        if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+          e.preventDefault()
+          redoRef.current?.()
+          return
+        }
       }
     }
     window.addEventListener('keydown', handler)
@@ -223,10 +319,10 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
     return () => clearInterval(id)
   }, [])
 
-  // Last session context: most recent saved note for this recurring meeting
+  // Last session context: most recent saved (non-draft) note for this recurring meeting
   const lastSessionNote = !isOneOff && effectiveRecurringMeetingId
     ? meetingNotes
-        .filter((n) => n.recurringMeetingId === effectiveRecurringMeetingId && n.id !== note.id)
+        .filter((n) => n.recurringMeetingId === effectiveRecurringMeetingId && n.id !== note.id && !n.isDraft)
         .sort((a, b) => (b.updatedAt || b.date || '').localeCompare(a.updatedAt || a.date || ''))[0] || null
     : null
 
@@ -238,8 +334,8 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
 
   const lastSessionPendingActions = lastSessionNote
     ? (lastSessionNote.sections || [])
-        .filter((s) => s.type === 'actionItems')
-        .flatMap((s) => (s.items || []).filter((i) => i.status !== 'done' && i.task))
+        .filter((s) => s.type === 'tasks')
+        .flatMap((s) => (s.items || []).filter((i) => i.status !== 'complete' && i.text))
     : []
 
   const hasLastSessionContext = lastSessionOpenTopics.length > 0 || lastSessionPendingActions.length > 0
@@ -247,10 +343,58 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
   const handleSave = () => {
     const processed = processTopicStatuses(note.sections)
     const processedInternal = processTopicStatuses(note.internalSections || [])
-    const saved = { ...finalNote(), sections: processed, internalSections: processedInternal, updatedAt: new Date().toISOString() }
-    setNote((n) => ({ ...n, sections: processed, internalSections: processedInternal }))
+    const saved = { ...finalNote(), sections: processed, internalSections: processedInternal, isDraft: false, updatedAt: new Date().toISOString() }
+    setNote((n) => ({ ...n, sections: processed, internalSections: processedInternal, isDraft: false }))
     saveMeetingNote(saved)
+    setDirty(false)
+
+    // Fire-and-forget auto-sync
+    if (window.electronAPI) {
+      const matchingConfigs = (syncConfigs || []).filter((cfg) => noteMatchesSync(saved, cfg))
+      if (matchingConfigs.length > 0) {
+        ;(async () => {
+          try {
+            const fileMapUpdates = {}
+            const syncNote = async (noteForSync, template, isInternal) => {
+              const buf = await renderNoteToPdfBuffer(noteForSync, template, exportT)
+              const base64 = arrayBufferToBase64(buf)
+              const filename = noteFilename(saved, isInternal)
+              for (const cfg of matchingConfigs) {
+                const key = syncFileKey(saved.id, cfg.id, isInternal)
+                const oldPath = (syncFileMap || {})[key]
+                if (oldPath) await window.electronAPI.deleteFile(oldPath).catch(() => {})
+                const pathParts = notePathParts(saved, cfg, recurringMeetings)
+                const result = await window.electronAPI.writeFile(pathParts, filename, base64)
+                if (result?.ok && result?.filePath) fileMapUpdates[key] = result.filePath
+              }
+            }
+            await syncNote({ ...saved, sections: processed }, resolvedTemplate, false)
+            if (internalActive && (saved.internalSections || []).length > 0) {
+              await syncNote({ ...saved, sections: processedInternal }, resolvedInternalTemplate, true)
+            }
+            if (Object.keys(fileMapUpdates).length > 0) updateSyncFileMap(fileMapUpdates)
+          } catch (err) {
+            console.error('[auto-sync] error', err)
+          }
+        })()
+      }
+    }
+
     onClose()
+  }
+
+  const handleSaveDraft = () => {
+    const processed = processTopicStatuses(note.sections)
+    const processedInternal = processTopicStatuses(note.internalSections || [])
+    const saved = { ...finalNote(), sections: processed, internalSections: processedInternal, isDraft: true, updatedAt: new Date().toISOString() }
+    setNote((n) => ({ ...n, sections: processed, internalSections: processedInternal, isDraft: true }))
+    saveMeetingNote(saved)
+    setDirty(false)
+    setLastDraftSave(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))
+  }
+
+  const handleClose = () => {
+    if (dirty) { setShowDiscardModal(true) } else { onClose() }
   }
 
   const doExport = async () => {
@@ -289,7 +433,8 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
       const processedStandard = processTopicStatuses(note.sections)
       const processedInternal = processTopicStatuses(note.internalSections || [])
       setNote((n) => ({ ...n, sections: processedStandard, internalSections: processedInternal }))
-      saveMeetingNote({ ...finalNote(), sections: processedStandard, internalSections: processedInternal, exportData: thumb, updatedAt: new Date().toISOString() })
+      saveMeetingNote({ ...finalNote(), sections: processedStandard, internalSections: processedInternal, isDraft: false, exportData: thumb, updatedAt: new Date().toISOString() })
+      setDirty(false)
 
       // Persist last-used format
       if (exportFormat !== settings?.exportFormat) {
@@ -314,13 +459,20 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
       {/* Top bar */}
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div className="flex items-center gap-3 min-w-0">
-          <button onClick={onClose} className="btn-ghost flex items-center gap-1.5 text-sm shrink-0">
+          <button onClick={handleClose} className="btn-ghost flex items-center gap-1.5 text-sm shrink-0">
             <ArrowLeft size={15} /> Back
           </button>
           <div className="min-w-0">
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white truncate">
-              {isEditingExisting ? 'Edit Meeting Note' : 'Write Meeting Note'}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white truncate">
+                {isEditingExisting ? 'Edit Meeting Note' : 'Write Meeting Note'}
+              </h1>
+              {note.isDraft && (
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 shrink-0">
+                  DRAFT
+                </span>
+              )}
+            </div>
             <div className="mt-0.5">
               {isOneOff ? (
                 <span className="text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded-full">
@@ -337,11 +489,22 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
 
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex items-center gap-2 flex-wrap">
+            {lastDraftSave && (
+              <span className="text-xs text-amber-500 dark:text-amber-400 flex items-center gap-1 whitespace-nowrap">
+                <Save size={11} /> Draft saved {lastDraftSave}
+              </span>
+            )}
             {lastAutoSave && (
               <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1 whitespace-nowrap">
                 <Clock size={11} /> Autosaved {lastAutoSave}
               </span>
             )}
+            <button
+              className="text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950 transition-colors"
+              onClick={handleSaveDraft}
+            >
+              <Save size={14} /> Save Draft
+            </button>
             <button className="btn-secondary text-sm flex items-center gap-1.5" onClick={handleSave}>
               <Save size={14} /> Save
             </button>
@@ -376,46 +539,62 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
         </div>
       </div>
 
-      {/* Internal Notes mode toggles (visible only when feature is enabled) */}
-      {internalNotesEnabled && (
-        <div className="flex items-center gap-4 mb-4 px-1">
-          <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1 shrink-0">
-            <Lock size={11} /> Note modes:
-          </span>
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <Toggle
-              checked={standardActive}
-              onChange={(val) => toggleMode('standard', val)}
-              disabled={standardActive && !internalActive}
-            />
-            <span className={`text-xs font-medium ${standardActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}`}>
-              Standard
+      {/* Mode toggles + Notes button */}
+      <div className="flex items-center gap-4 mb-4 px-1 flex-wrap">
+        {internalNotesEnabled && (
+          <>
+            <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1 shrink-0">
+              <Lock size={11} /> Note modes:
             </span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <Toggle
-              checked={internalActive}
-              onChange={(val) => toggleMode('internal', val)}
-              disabled={internalActive && !standardActive}
-            />
-            <span className={`text-xs font-medium ${internalActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}`}>
-              Internal
-            </span>
-          </label>
-          {bothActive && (
-            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-full p-0.5 ml-2">
-              <button
-                onClick={() => setActiveMode('standard')}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeMode === 'standard' ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
-              >Standard</button>
-              <button
-                onClick={() => setActiveMode('internal')}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeMode === 'internal' ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
-              >Internal</button>
-            </div>
-          )}
-        </div>
-      )}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <Toggle
+                checked={standardActive}
+                onChange={(val) => toggleMode('standard', val)}
+                disabled={standardActive && !internalActive}
+              />
+              <span className={`text-xs font-medium ${standardActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}`}>
+                Standard
+              </span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <Toggle
+                checked={internalActive}
+                onChange={(val) => toggleMode('internal', val)}
+                disabled={internalActive && !standardActive}
+              />
+              <span className={`text-xs font-medium ${internalActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}`}>
+                Internal
+              </span>
+            </label>
+            {bothActive && (
+              <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-full p-0.5">
+                <button
+                  onClick={() => setActiveMode('standard')}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeMode === 'standard' ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
+                >Standard</button>
+                <button
+                  onClick={() => setActiveMode('internal')}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeMode === 'internal' ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
+                >Internal</button>
+              </div>
+            )}
+            <div className="w-px h-4 bg-gray-200 dark:bg-gray-600 shrink-0" />
+          </>
+        )}
+        <button
+          onClick={() => {
+            if (bothActive) {
+              setNotesOverlayOpen(true)
+            } else {
+              setOpenNotesToken(Date.now())
+            }
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950 border border-purple-200 dark:border-purple-800 transition-colors"
+          title={bothActive ? 'Open combined notes editor' : 'Jump to notes section'}
+        >
+          <Brain size={13} /> Notes
+        </button>
+      </div>
 
       {/* Floating bottom-centre panel toggles */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full shadow-lg overflow-hidden select-none">
@@ -735,6 +914,8 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
                 meetingNotes={meetingNotes}
                 defaultTone={recurringMeeting?.defaultNotesTone || settings?.aiTone}
                 contextDepth={settings?.notesContextDepth ?? 4}
+                openNotesToken={openNotesToken}
+                tasksEnabled={!!settings?.tasksEnabled}
               />
             ) : (
               <SectionList
@@ -745,6 +926,8 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
                 meetingNotes={meetingNotes}
                 defaultTone={recurringMeeting?.defaultNotesTone || settings?.aiTone}
                 contextDepth={settings?.notesContextDepth ?? 4}
+                openNotesToken={openNotesToken}
+                tasksEnabled={!!settings?.tasksEnabled}
               />
             )}
           </div>
@@ -762,6 +945,95 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
           </div>
         )}
       </div>
+
+      {/* Discard-changes confirmation modal */}
+      {showDiscardModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowDiscardModal(false)} />
+          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Unsaved Changes</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-5">
+              Your changes have not been saved. Are you sure you would like to discard your changes?
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button className="btn-ghost text-sm" onClick={() => setShowDiscardModal(false)}>
+                No, keep editing
+              </button>
+              <button
+                className="text-sm px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium transition-colors"
+                onClick={() => { setShowDiscardModal(false); onClose() }}
+              >
+                Yes, discard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notes Overlay */}
+      {notesOverlayOpen && (
+        <NotesOverlay
+          standardSection={note.sections?.find((s) => s.type === 'notes') ?? null}
+          internalSection={note.internalSections?.find((s) => s.type === 'notes') ?? null}
+          standardTasksSection={note.sections?.find((s) => s.type === 'tasks') ?? null}
+          internalTasksSection={note.internalSections?.find((s) => s.type === 'tasks') ?? null}
+          note={{ ...note, title: effectiveTitle }}
+          meetingNotes={meetingNotes}
+          defaultTone={recurringMeeting?.defaultNotesTone || settings?.aiTone}
+          contextDepth={settings?.notesContextDepth ?? 4}
+          internalEnabled={internalActive}
+          tasksEnabled={!!settings?.tasksEnabled}
+          onChangeStandard={(patch) => {
+            setDirty(true)
+            setNote((prev) => {
+              const secs = prev.sections || []
+              const idx = secs.findIndex((s) => s.type === 'notes')
+              if (idx >= 0) {
+                const updated = [...secs]; updated[idx] = { ...updated[idx], ...patch }
+                return { ...prev, sections: updated }
+              }
+              return { ...prev, sections: [{ id: uuid(), type: 'notes', label: '', content: '', ...patch }, ...secs] }
+            })
+          }}
+          onChangeInternal={(patch) => {
+            setDirty(true)
+            setNote((prev) => {
+              const secs = prev.internalSections || []
+              const idx = secs.findIndex((s) => s.type === 'notes')
+              if (idx >= 0) {
+                const updated = [...secs]; updated[idx] = { ...updated[idx], ...patch }
+                return { ...prev, internalSections: updated }
+              }
+              return { ...prev, internalSections: [{ id: uuid(), type: 'notes', label: '', content: '', ...patch }, ...secs] }
+            })
+          }}
+          onChangeStandardTasks={(patch) => {
+            setDirty(true)
+            setNote((prev) => {
+              const secs = prev.sections || []
+              const idx = secs.findIndex((s) => s.type === 'tasks')
+              if (idx >= 0) {
+                const updated = [...secs]; updated[idx] = { ...updated[idx], ...patch }
+                return { ...prev, sections: updated }
+              }
+              return { ...prev, sections: [...secs, { id: uuid(), type: 'tasks', label: '', items: [], ...patch }] }
+            })
+          }}
+          onChangeInternalTasks={(patch) => {
+            setDirty(true)
+            setNote((prev) => {
+              const secs = prev.internalSections || []
+              const idx = secs.findIndex((s) => s.type === 'tasks')
+              if (idx >= 0) {
+                const updated = [...secs]; updated[idx] = { ...updated[idx], ...patch }
+                return { ...prev, internalSections: updated }
+              }
+              return { ...prev, internalSections: [...secs, { id: uuid(), type: 'tasks', label: '', items: [], ...patch }] }
+            })
+          }}
+          onClose={() => setNotesOverlayOpen(false)}
+        />
+      )}
 
       {/* Off-screen export canvas */}
       {showCanvas && (
