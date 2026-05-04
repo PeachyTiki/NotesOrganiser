@@ -152,21 +152,21 @@ export function importAITextResponse(text, currentSections) {
 
 // ─── Section-scoped prompt (for the Notes section type) ───────────────────────
 
-export function buildSectionAIPrompt(section, note, allMeetingNotes, mode, toneSettings) {
+export function buildSectionAIPrompt(section, note, allMeetingNotes, toneSettings) {
   const langName = resolveLanguageName(note.language)
+  const hasTranscript = !!(section.content?.trim())
   return {
     _version: '1',
     _type: 'notes_section_prompt',
-    output_mode: mode,
     instructions: {
-      task: `Fill in the "${section.label || 'Notes'}" section. The user's raw transcript, rough notes, or initial content is in current_section.transcript — process it and return well-structured, formatted notes. If transcript is empty, use the meeting context to produce a template/placeholder.`,
+      task: hasTranscript
+        ? `The "${section.label || 'Notes'}" section contains raw notes or a transcript written during the meeting (see current_section.transcript). Clean it up into well-structured, formatted notes.`
+        : `The "${section.label || 'Notes'}" section has no transcript yet. Ask the user to share their meeting notes or transcript in this chat — do not generate placeholder content without it.`,
       output_language: langName
         ? `Write ALL output content in ${langName}. This applies regardless of what language the transcript or raw notes are in.`
         : undefined,
       output_format:
-        mode === 'json'
-          ? 'Return a JSON object with a single "content" field containing the formatted notes as markdown text. Example: {"content": "## Summary\\n- Point one\\n- Point two"}'
-          : 'Return the notes as plain formatted text using markdown (## for headings, - for bullets, - [ ] for tasks, - [x] for done tasks). Do not wrap in JSON.',
+        'Return a JSON object with a single "content" field containing the formatted notes as markdown text. Example: {"content": "## Summary\\n- Point one\\n- Point two"}. Plain text is also accepted by the app.',
       tone: buildToneString(toneSettings),
     },
     meeting_context: {
