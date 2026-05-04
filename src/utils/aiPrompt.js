@@ -641,7 +641,7 @@ export function buildCombinedNotesAndTasksAIPrompt(
     } : {}),
     ...(standardTasksSection ? {
       standard_tasks_section: {
-        raw_input: standardTasksSection.content || '',
+        raw_input: standardExtract ? '' : (standardTasksSection.content || ''),
         existing_items: (standardTasksSection.items || []).map((i) => ({
           text: i.text || '', assignee: i.assignee || '', status: i.status || 'planned',
         })),
@@ -649,7 +649,7 @@ export function buildCombinedNotesAndTasksAIPrompt(
     } : {}),
     ...(internalTasksSection ? {
       internal_tasks_section: {
-        raw_input: internalTasksSection.content || '',
+        raw_input: internalExtract ? '' : (internalTasksSection.content || ''),
         existing_items: (internalTasksSection.items || []).map((i) => ({
           text: i.text || '', assignee: i.assignee || '', status: i.status || 'planned',
         })),
