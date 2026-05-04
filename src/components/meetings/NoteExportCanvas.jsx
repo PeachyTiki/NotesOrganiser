@@ -150,7 +150,7 @@ function SectionBlock({ section, bannerColor, t, isFirst }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {data.map((d, i) => (
               <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151' }}>
-                <span style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: d.color || '#E8210A', display: 'inline-block', flexShrink: 0 }} />
+                <span style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: d.color || '#ff0000', display: 'inline-block', flexShrink: 0 }} />
                 {d.label}
               </div>
             ))}
@@ -304,7 +304,7 @@ function SectionBlock({ section, bannerColor, t, isFirst }) {
 }
 
 export default function NoteExportCanvas({ note, template, t }) {
-  const bannerColor = template?.bannerColor || '#E8210A'
+  const bannerColor = template?.bannerColor || '#ff0000'
   const fontFamily = template?.fontFamily || 'Inter'
   const logo = template?.logo
   const dateConfig = template?.dateConfig

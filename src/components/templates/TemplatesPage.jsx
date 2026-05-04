@@ -64,7 +64,7 @@ function TemplateCard({ template, onEdit, onDelete }) {
       {/* Banner preview */}
       <div
         className="h-10 w-full"
-        style={{ backgroundColor: template.bannerColor || '#E8210A' }}
+        style={{ backgroundColor: template.bannerColor || '#ff0000' }}
       />
       {/* Logo preview row */}
       <div className="px-4 pt-3 pb-4">

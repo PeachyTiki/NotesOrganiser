@@ -184,7 +184,7 @@ export function GanttChart({ data, colorMode, bannerColor, width = 640 }) {
         const barW = Math.max(x2 - x1, 6)
         const y = padTop + i * rowH
         const pct = parseFloat(row.onTrack) || 0
-        const barColor = colorMode === 'dynamic' ? onTrackColor(pct) : (bannerColor || '#E8210A')
+        const barColor = colorMode === 'dynamic' ? onTrackColor(pct) : (bannerColor || '#ff0000')
         const wDays = countWorkingDays(row.startDate, row.endDate)
 
         return (

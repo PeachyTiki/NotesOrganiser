@@ -13,7 +13,7 @@ function niceTick(rough) {
   return 10 * base
 }
 
-const DEFAULT_COLORS = ['#E8210A', '#1E3A5F', '#64748B', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899']
+const DEFAULT_COLORS = ['#ff0000', '#1E3A5F', '#64748B', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899']
 
 export function BarChart({ data, bannerColor, colorMode, colorRules, width = 640, compact = false }) {
   const items = (data || []).filter((d) => d.label)

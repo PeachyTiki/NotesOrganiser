@@ -18,7 +18,7 @@ export default function TextEditorModal({ section, onSave, onClose }) {
   const lines = content.split('\n')
   const preview = lines.map((line, i) => {
     if (line.startsWith('## '))
-      return <div key={i} style={{ fontWeight: 700, fontSize: 14, color: '#E8210A', marginTop: 10, marginBottom: 4 }}>{line.slice(3)}</div>
+      return <div key={i} style={{ fontWeight: 700, fontSize: 14, color: '#ff0000', marginTop: 10, marginBottom: 4 }}>{line.slice(3)}</div>
     if (line.startsWith('# '))
       return <div key={i} style={{ fontWeight: 700, fontSize: 17, color: '#0F172A', marginTop: 14, marginBottom: 6 }}>{line.slice(2)}</div>
     if (line.startsWith('- [ ] '))
@@ -26,7 +26,7 @@ export default function TextEditorModal({ section, onSave, onClose }) {
     if (/^- \[[xX]\] /.test(line))
       return <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 3, color: '#94A3B8', textDecoration: 'line-through' }}><span>☑</span><span>{line.slice(6)}</span></div>
     if (line.startsWith('- '))
-      return <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 3, color: '#374151' }}><span style={{ color: '#E8210A', fontWeight: 700 }}>•</span><span>{line.slice(2)}</span></div>
+      return <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 3, color: '#374151' }}><span style={{ color: '#ff0000', fontWeight: 700 }}>•</span><span>{line.slice(2)}</span></div>
     if (line === '') return <div key={i} style={{ height: 8 }} />
     return <div key={i} style={{ color: '#374151', marginBottom: 2, fontSize: 13 }}>{line}</div>
   })
