@@ -21,9 +21,10 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
   const editorRef = useRef(null)
   const lastEmittedRef = useRef(null)
   const savedSelRef = useRef(null)
+  const isFocusedRef = useRef(false)
   const [bulletOpen, setBulletOpen] = useState(false)
 
-  // Mount: set initial content only once
+  // Mount: set initial content once
   useEffect(() => {
     if (editorRef.current) {
       editorRef.current.innerHTML = value || ''
@@ -31,10 +32,12 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync external value only when editor is not focused
+  // Sync external value only when the editor is NOT focused.
+  // Use isFocusedRef (set in onFocus/onBlur) — more reliable than document.activeElement
+  // in Electron where focus queries can race with React's reconciliation.
   useEffect(() => {
     if (!editorRef.current) return
-    if (document.activeElement === editorRef.current) return
+    if (isFocusedRef.current) return
     if (value === lastEmittedRef.current) return
     editorRef.current.innerHTML = value || ''
     lastEmittedRef.current = value || ''
@@ -48,8 +51,11 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
     onChange?.(html)
   }, [onChange])
 
+  // exec: do NOT call focus() here.
+  // All toolbar buttons use onMouseDown + e.preventDefault() to keep focus in the
+  // editor — adding an extra focus() call after execCommand confuses Chromium's
+  // caret tracking and is the primary cause of the "can format but can't type" bug.
   const exec = useCallback((cmd, val) => {
-    editorRef.current?.focus()
     document.execCommand('styleWithCSS', false, false)
     document.execCommand(cmd, false, val ?? null)
     emitChange()
@@ -69,7 +75,7 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
   }, [])
 
   const applyBullet = useCallback((listStyle) => {
-    editorRef.current?.focus()
+    restoreSelection()
     document.execCommand('styleWithCSS', false, false)
     document.execCommand('insertUnorderedList', false, null)
     const sel = window.getSelection()
@@ -82,16 +88,34 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
     }
     setBulletOpen(false)
     emitChange()
-  }, [emitChange])
+  }, [restoreSelection, emitChange])
 
   const handleKeyDown = useCallback((e) => {
     const mod = e.ctrlKey || e.metaKey
-    if (mod && !e.shiftKey && e.key === 'b') { e.preventDefault(); exec('bold') }
-    else if (mod && !e.shiftKey && e.key === 'i') { e.preventDefault(); exec('italic') }
-    else if (mod && !e.shiftKey && e.key === 'u') { e.preventDefault(); exec('underline') }
-    else if (mod && e.shiftKey && e.key === '8') { e.preventDefault(); exec('insertUnorderedList') }
-    else if (e.key === 'Tab') { e.preventDefault(); exec(e.shiftKey ? 'outdent' : 'indent') }
-  }, [exec])
+
+    if (mod && !e.shiftKey && e.key === 'b') { e.preventDefault(); exec('bold'); return }
+    if (mod && !e.shiftKey && e.key === 'i') { e.preventDefault(); exec('italic'); return }
+    if (mod && !e.shiftKey && e.key === 'u') { e.preventDefault(); exec('underline'); return }
+    if (mod && e.shiftKey && e.key === '8')  { e.preventDefault(); exec('insertUnorderedList'); return }
+
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      exec(e.shiftKey ? 'outdent' : 'indent')
+      return
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (e.shiftKey) {
+        // Shift+Enter → soft line break (<br>)
+        document.execCommand('insertLineBreak', false, null)
+      } else {
+        // Enter → new paragraph
+        document.execCommand('insertParagraph', false, null)
+      }
+      emitChange()
+    }
+  }, [exec, emitChange])
 
   useEffect(() => {
     if (!bulletOpen) return
@@ -127,7 +151,7 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
         <div className="relative" data-bm="1">
           <button
             type="button"
-            onMouseDown={(e) => { e.preventDefault(); setBulletOpen((v) => !v) }}
+            onMouseDown={(e) => { e.preventDefault(); saveSelection(); setBulletOpen((v) => !v) }}
             title="Bullet list"
             data-bm="1"
             className="p-1 rounded text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center gap-0.5"
@@ -223,6 +247,8 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
         ref={editorRef}
         contentEditable
         suppressContentEditableWarning
+        onFocus={() => { isFocusedRef.current = true }}
+        onBlur={() => { isFocusedRef.current = false; emitChange() }}
         onInput={emitChange}
         onKeyDown={handleKeyDown}
         data-placeholder={placeholder || 'Start typing…'}
