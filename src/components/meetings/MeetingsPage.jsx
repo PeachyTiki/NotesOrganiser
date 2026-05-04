@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Plus, FileEdit, ChevronRight, ChevronDown, Search, Sparkles,
-  Folder, FolderOpen, Pencil, Trash2, Check, X, Building2,
+  Folder, FolderOpen, Pencil, Trash2, Check, X, Building2, ArrowUpDown,
 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
@@ -46,6 +46,9 @@ export default function MeetingsPage() {
   const [prefilledCustomer, setPrefilledCustomer] = useState(null)
   const [noteConfig, setNoteConfig] = useState(null)
   const [search, setSearch] = useState('')
+  const [meetingSort, setMeetingSort] = useState('name_asc')
+  const [filterHasNotes, setFilterHasNotes] = useState(false)
+  const [filterToday, setFilterToday] = useState(false)
   const [openCustomers, setOpenCustomers] = useState({})
   const [addingCustomer, setAddingCustomer] = useState(false)
   const [newCustomerName, setNewCustomerName] = useState('')
@@ -62,6 +65,24 @@ export default function MeetingsPage() {
   useEffect(() => {
     if (renamingId && renameInputRef.current) renameInputRef.current.select()
   }, [renamingId])
+
+  const noteCountById = useMemo(() => {
+    const m = {}
+    meetingNotes.forEach((n) => {
+      if (n.recurringMeetingId) m[n.recurringMeetingId] = (m[n.recurringMeetingId] || 0) + 1
+    })
+    return m
+  }, [meetingNotes])
+
+  const latestNoteById = useMemo(() => {
+    const m = {}
+    meetingNotes.forEach((n) => {
+      if (!n.recurringMeetingId) return
+      const ts = n.updatedAt || n.createdAt || n.date || ''
+      if (!m[n.recurringMeetingId] || ts > m[n.recurringMeetingId]) m[n.recurringMeetingId] = ts
+    })
+    return m
+  }, [meetingNotes])
 
   // Customer name -> customer lookup (case-insensitive)
   const customerByName = useMemo(() => {
@@ -96,11 +117,36 @@ export default function MeetingsPage() {
         unassigned.push(m)
       }
     })
-    return {
-      customerGroups: customers.map((c) => byId[c.id]),
-      unassigned,
+
+    const sortMeetings = (list) => {
+      const sorted = [...list]
+      sorted.sort((a, b) => {
+        switch (meetingSort) {
+          case 'name_desc':       return (b.name || '').localeCompare(a.name || '')
+          case 'most_notes':      return (noteCountById[b.id] || 0) - (noteCountById[a.id] || 0)
+          case 'recently_active': return (latestNoteById[b.id] || '').localeCompare(latestNoteById[a.id] || '')
+          case 'no_notes':        return (noteCountById[a.id] || 0) - (noteCountById[b.id] || 0)
+          default:                return (a.name || '').localeCompare(b.name || '')
+        }
+      })
+      return sorted
     }
-  }, [customers, filteredMeetings, customerByName])
+
+    const applyFilters = (list) => {
+      let out = list
+      if (filterHasNotes) out = out.filter((m) => (noteCountById[m.id] || 0) > 0)
+      if (filterToday) out = out.filter((m) => isScheduledToday(m.schedule))
+      return out
+    }
+
+    return {
+      customerGroups: customers.map((c) => ({
+        ...byId[c.id],
+        meetings: sortMeetings(applyFilters(byId[c.id].meetings)),
+      })),
+      unassigned: sortMeetings(applyFilters(unassigned)),
+    }
+  }, [customers, filteredMeetings, customerByName, meetingSort, filterHasNotes, filterToday, noteCountById, latestNoteById])
 
   // Today's meetings (across all customers)
   const todayMeetings = useMemo(
@@ -230,8 +276,8 @@ export default function MeetingsPage() {
         </div>
       ) : (
         <>
-          {/* Search */}
-          <div className="mb-6">
+          {/* Search + filters */}
+          <div className="mb-6 space-y-2">
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               <input
@@ -240,6 +286,50 @@ export default function MeetingsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
+            </div>
+            <div className="flex gap-2 flex-wrap items-center">
+              <div className="flex items-center gap-1.5">
+                <ArrowUpDown size={12} className="text-gray-400 shrink-0" />
+                <select
+                  className="input text-xs py-1 w-auto"
+                  value={meetingSort}
+                  onChange={(e) => setMeetingSort(e.target.value)}
+                >
+                  <option value="name_asc">Name A → Z</option>
+                  <option value="name_desc">Name Z → A</option>
+                  <option value="most_notes">Most notes</option>
+                  <option value="recently_active">Recently active</option>
+                  <option value="no_notes">No notes yet</option>
+                </select>
+              </div>
+              <button
+                onClick={() => setFilterHasNotes((v) => !v)}
+                className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                  filterHasNotes
+                    ? 'bg-green-50 dark:bg-green-950 border-green-300 dark:border-green-700 text-green-600 dark:text-green-400'
+                    : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
+                }`}
+              >
+                Has notes
+              </button>
+              <button
+                onClick={() => setFilterToday((v) => !v)}
+                className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                  filterToday
+                    ? 'bg-accent/10 border-accent/40 text-accent'
+                    : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
+                }`}
+              >
+                Today only
+              </button>
+              {(filterHasNotes || filterToday || search) && (
+                <button
+                  onClick={() => { setSearch(''); setFilterHasNotes(false); setFilterToday(false) }}
+                  className="text-xs text-accent hover:underline flex items-center gap-1 ml-auto"
+                >
+                  <X size={11} /> Clear
+                </button>
+              )}
             </div>
           </div>
 
@@ -259,7 +349,7 @@ export default function MeetingsPage() {
                     key={mtg.id}
                     meeting={mtg}
                     isToday
-                    noteCount={meetingNotes.filter((n) => n.recurringMeetingId === mtg.id).length}
+                    noteCount={noteCountById[mtg.id] || 0}
                     onEdit={() => { setEditingMeeting(mtg); setPrefilledCustomer(null); setView('editRecurring') }}
                     onWriteNote={() => { setNoteConfig({ recurringMeetingId: mtg.id }); setView('newNote') }}
                   />
@@ -363,7 +453,7 @@ export default function MeetingsPage() {
                             key={mtg.id}
                             meeting={mtg}
                             isToday={isScheduledToday(mtg.schedule)}
-                            noteCount={meetingNotes.filter((n) => n.recurringMeetingId === mtg.id).length}
+                            noteCount={noteCountById[mtg.id] || 0}
                             onEdit={() => { setEditingMeeting(mtg); setPrefilledCustomer(null); setView('editRecurring') }}
                             onWriteNote={() => { setNoteConfig({ recurringMeetingId: mtg.id }); setView('newNote') }}
                           />
@@ -415,7 +505,7 @@ export default function MeetingsPage() {
                           key={mtg.id}
                           meeting={mtg}
                           isToday={isScheduledToday(mtg.schedule)}
-                          noteCount={meetingNotes.filter((n) => n.recurringMeetingId === mtg.id).length}
+                          noteCount={noteCountById[mtg.id] || 0}
                           onEdit={() => { setEditingMeeting(mtg); setPrefilledCustomer(null); setView('editRecurring') }}
                           onWriteNote={() => { setNoteConfig({ recurringMeetingId: mtg.id }); setView('newNote') }}
                         />
