@@ -163,15 +163,15 @@ export default function SettingsModal({ onClose }) {
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
-                    value={form.accentLight || '#E8210A'}
+                    value={form.accentLight || '#ff0000'}
                     onChange={(e) => set('accentLight', e.target.value)}
                     className="w-9 h-9 rounded cursor-pointer border border-gray-200 dark:border-gray-600 p-0.5 shrink-0"
                   />
                   <input
                     className="input"
-                    value={form.accentLight || '#E8210A'}
+                    value={form.accentLight || '#ff0000'}
                     onChange={(e) => set('accentLight', e.target.value)}
-                    placeholder="#E8210A"
+                    placeholder="#ff0000"
                   />
                 </div>
               </div>

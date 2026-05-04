@@ -34,7 +34,7 @@ function lightenHex(hex, pct) {
 
 // ─── Palette presets ──────────────────────────────────────────────────────────
 const FIXED_PRESETS = [
-  { name: 'Adobe Classic',  colors: ['#E8210A', '#1E293B', '#64748B', '#F1F5F9'] },
+  { name: 'Adobe Classic',  colors: ['#ff0000', '#1E293B', '#64748B', '#F1F5F9'] },
   { name: 'Ocean Blue',     colors: ['#0284C7', '#0C4A6E', '#38BDF8', '#BAE6FD', '#F0F9FF'] },
   { name: 'Forest',         colors: ['#16A34A', '#14532D', '#4ADE80', '#DCFCE7'] },
   { name: 'Sunset',         colors: ['#EA580C', '#7C2D12', '#FB923C', '#FED7AA'] },
@@ -84,9 +84,9 @@ function emptyTemplate() {
   return {
     id: uuid(),
     name: '',
-    bannerColor: '#E8210A',
+    bannerColor: '#ff0000',
     fontFamily: 'Inter',
-    colorPalette: ['#E8210A', '#1E293B', '#64748B', '#F1F5F9'],
+    colorPalette: ['#ff0000', '#1E293B', '#64748B', '#F1F5F9'],
     logo: { show: false, position: 'top-left', data: null },
     dateConfig: { show: true, zone: 'header', alignment: 'right' },
     createdAt: new Date().toISOString(),
@@ -272,7 +272,7 @@ export default function TemplateEditor({ template, onClose }) {
                 onChange={(e) => set('bannerColor', e.target.value)}
                 className="w-10 h-10 rounded cursor-pointer border border-gray-200 dark:border-gray-600 p-0.5"
               />
-              <input className="input" value={form.bannerColor} onChange={(e) => set('bannerColor', e.target.value)} placeholder="#E8210A" />
+              <input className="input" value={form.bannerColor} onChange={(e) => set('bannerColor', e.target.value)} placeholder="#ff0000" />
             </div>
           </div>
 
@@ -414,7 +414,7 @@ function TemplatePreview({ form }) {
 
   return (
     <div className="rounded-xl overflow-hidden shadow-lg border border-gray-100 dark:border-gray-700 sticky top-20" style={{ fontFamily: form.fontFamily || 'Inter' }}>
-      <div className="h-12 flex items-center px-4" style={{ backgroundColor: form.bannerColor || '#E8210A' }}>
+      <div className="h-12 flex items-center px-4" style={{ backgroundColor: form.bannerColor || '#ff0000' }}>
         {form.logo?.show && form.logo?.data
           ? <div className={`flex w-full ${logoJustify}`}><img src={form.logo.data} alt="Logo" className="h-8 object-contain" /></div>
           : <span className="text-white font-semibold text-sm">Meeting Notes</span>

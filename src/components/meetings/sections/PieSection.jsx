@@ -2,7 +2,7 @@ import React from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 
-const DEFAULT_COLORS = ['#E8210A', '#1E3A5F', '#10B981', '#F59E0B', '#3B82F6', '#8B5CF6', '#EC4899', '#64748B']
+const DEFAULT_COLORS = ['#ff0000', '#1E3A5F', '#10B981', '#F59E0B', '#3B82F6', '#8B5CF6', '#EC4899', '#64748B']
 
 function PieChart({ data, width = 300 }) {
   const items = (data || []).filter((d) => d.label && parseFloat(d.value) > 0)

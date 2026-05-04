@@ -4,14 +4,14 @@
 
 @layer base {
   :root {
-    --accent: #E8210A;
-    --accent-rgb: 232, 33, 10;
-    --accent-dark: #B91C1C;
-    --accent-dark-rgb: 185, 28, 28;
-    --accent-light: #FFECE9;
-    --accent-light-rgb: 255, 236, 233;
-    --accent-muted: #FF6B6B;
-    --accent-muted-rgb: 255, 107, 107;
+    --accent: #ff0000;
+    --accent-rgb: 255, 0, 0;
+    --accent-dark: #cc0000;
+    --accent-dark-rgb: 204, 0, 0;
+    --accent-light: #ffe5e5;
+    --accent-light-rgb: 255, 229, 229;
+    --accent-muted: #ff6666;
+    --accent-muted-rgb: 255, 102, 102;
   }
 
   .dark {

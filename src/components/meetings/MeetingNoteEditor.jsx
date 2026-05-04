@@ -127,6 +127,10 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
   const [exportFormat, setExportFormat] = useState(settings?.exportFormat || 'pdf')
   const [formCollapsed, setFormCollapsed] = useState(false)
   const [presetsOpen, setPresetsOpen] = useState(false)
+  const [presetNameInput, setPresetNameInput] = useState('')
+  const [presetNameError, setPresetNameError] = useState(false)
+  const [savingPreset, setSavingPreset] = useState(false)
+  const presetInputRef = useRef(null)
   const latestRef = useRef(null)
   const handleSaveRef = useRef(null)
 
@@ -161,7 +165,12 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
   useEffect(() => {
     if (!presetsOpen) return
     const handler = (e) => {
-      if (!e.target.closest('[data-presets-container]')) setPresetsOpen(false)
+      if (!e.target.closest('[data-presets-container]')) {
+        setPresetsOpen(false)
+        setSavingPreset(false)
+        setPresetNameInput('')
+        setPresetNameError(false)
+      }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -542,23 +551,57 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
                 </button>
                 {presetsOpen && (
                   <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-30 py-1">
-                    <div className="px-3 py-1.5 border-b border-gray-100 dark:border-gray-700">
-                      <button
-                        onClick={() => {
-                          const name = prompt('Preset name:')
-                          if (!name?.trim()) return
-                          const { v4: uuidFn } = { v4: () => Math.random().toString(36).slice(2) }
-                          saveSectionPreset({
-                            id: crypto.randomUUID?.() || Math.random().toString(36).slice(2),
-                            name: name.trim(),
-                            sections: (note.sections || []).map((s) => ({ type: s.type, label: s.label || '' })),
-                          })
-                          setPresetsOpen(false)
-                        }}
-                        className="w-full text-left text-xs text-accent hover:underline font-medium"
-                      >
-                        + Save current layout as preset
-                      </button>
+                    <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
+                      {savingPreset ? (
+                        <div>
+                          <input
+                            ref={presetInputRef}
+                            className="input text-xs w-full mb-1"
+                            placeholder="Preset name"
+                            value={presetNameInput}
+                            onChange={(e) => { setPresetNameInput(e.target.value); setPresetNameError(false) }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                if (!presetNameInput.trim()) { setPresetNameError(true); return }
+                                saveSectionPreset({
+                                  id: crypto.randomUUID?.() || Math.random().toString(36).slice(2),
+                                  name: presetNameInput.trim(),
+                                  sections: (note.sections || []).map((s) => ({ type: s.type, label: s.label || '' })),
+                                })
+                                setPresetNameInput(''); setSavingPreset(false); setPresetNameError(false); setPresetsOpen(false)
+                              }
+                              if (e.key === 'Escape') { setSavingPreset(false); setPresetNameInput(''); setPresetNameError(false) }
+                            }}
+                            autoFocus
+                          />
+                          {presetNameError && <p className="text-xs text-red-500 mb-1">Please enter a name</p>}
+                          <div className="flex gap-1">
+                            <button
+                              className="btn-primary text-xs py-0.5 px-2"
+                              onClick={() => {
+                                if (!presetNameInput.trim()) { setPresetNameError(true); return }
+                                saveSectionPreset({
+                                  id: crypto.randomUUID?.() || Math.random().toString(36).slice(2),
+                                  name: presetNameInput.trim(),
+                                  sections: (note.sections || []).map((s) => ({ type: s.type, label: s.label || '' })),
+                                })
+                                setPresetNameInput(''); setSavingPreset(false); setPresetNameError(false); setPresetsOpen(false)
+                              }}
+                            >Save</button>
+                            <button
+                              className="btn-ghost text-xs py-0.5 px-2"
+                              onClick={() => { setSavingPreset(false); setPresetNameInput(''); setPresetNameError(false) }}
+                            >Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setSavingPreset(true); setTimeout(() => presetInputRef.current?.focus(), 30) }}
+                          className="w-full text-left text-xs text-accent hover:underline font-medium"
+                        >
+                          + Save current layout as preset
+                        </button>
+                      )}
                     </div>
                     {(sectionPresets || []).length === 0 && (
                       <p className="text-xs text-gray-400 px-3 py-2">No presets saved yet</p>

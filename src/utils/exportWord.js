@@ -91,7 +91,7 @@ function tintHex(hex) {
 }
 
 // Section heading: tinted accent background + thick accent left bar — matches PDF section headers
-function sectionHeading(text, accentHex = '#E8210A') {
+function sectionHeading(text, accentHex = '#ff0000') {
   const color = accentHex.replace('#', '')
   const tinted = tintHex(accentHex)
   return new Paragraph({
@@ -153,7 +153,7 @@ function makeDocConfig(children) {
 }
 
 // Parse markdown-like text content into Word paragraphs
-function textToParas(content, accentHex = '#E8210A') {
+function textToParas(content, accentHex = '#ff0000') {
   const accentClean = accentHex.replace('#', '')
   const paras = []
   for (const line of (content || '').split('\n')) {
@@ -217,7 +217,7 @@ const STATUS_RISK = {
 }
 
 export async function buildWordDoc(note, template, chartImages, t) {
-  const accent = template?.bannerColor || '#E8210A'
+  const accent = template?.bannerColor || '#ff0000'
   const accentClean = accent.replace('#', '')
   const tFn = t || ((k) => k)
   const children = []
@@ -439,7 +439,7 @@ export async function buildBulkWordDoc(notes) {
 
   for (let ni = 0; ni < notes.length; ni++) {
     const note = notes[ni]
-    const accent = '#E8210A'
+    const accent = '#ff0000'
 
     if (ni > 0) {
       children.push(new Paragraph({ children: [], pageBreakBefore: true, spacing: { before: 0, after: 0 } }))

@@ -2,7 +2,7 @@ import React from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 
-const SERIES_COLORS = ['#E8210A', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899']
+const SERIES_COLORS = ['#ff0000', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899']
 
 function LineChart({ xLabels, series, width = 600 }) {
   const hasData = series.some((s) => s.values.some((v) => v !== '' && !isNaN(parseFloat(v))))

@@ -128,7 +128,7 @@ class PageBuilder {
 }
 
 export async function buildPDF(note, template, chartImages, t) {
-  const bannerColor = template?.bannerColor || '#E8210A'
+  const bannerColor = template?.bannerColor || '#ff0000'
   const [ar, ag, ab] = hexToRgb(bannerColor)
   const tFn = t || ((k) => k)
   const dateStr = fmtDate(note.date)

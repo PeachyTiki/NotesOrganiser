@@ -4,7 +4,7 @@ import { makeT, getSystemLanguage } from '../utils/i18n'
 
 const STORAGE_KEY = 'notes_organiser_v1'
 
-const DEFAULT_ACCENT_LIGHT = '#E8210A'
+const DEFAULT_ACCENT_LIGHT = '#ff0000'
 const DEFAULT_ACCENT_DARK = '#FF6B6B'
 
 const defaultState = {
