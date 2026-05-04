@@ -146,12 +146,14 @@ function TasksColumn({ label, badgeClass, section, onChange, onExportSingle, ext
         </span>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        <RichTextEditor
-          value={section?.content || ''}
-          onChange={(html) => onChange({ content: html })}
-          placeholder="Write rough task notes here — e.g. 'John to send proposal by Friday, Alice to review specs'. The AI will structure these into tasks."
-          minHeight={180}
-        />
+        <div className={extractFromNotes ? 'opacity-40 pointer-events-none select-none' : ''}>
+          <RichTextEditor
+            value={section?.content || ''}
+            onChange={(html) => onChange({ content: html })}
+            placeholder="Write rough task notes here — e.g. 'John to send proposal by Friday, Alice to review specs'. The AI will structure these into tasks."
+            minHeight={180}
+          />
+        </div>
         <label className="flex items-center gap-1.5 cursor-pointer">
           <input
             type="checkbox"
@@ -161,6 +163,11 @@ function TasksColumn({ label, badgeClass, section, onChange, onExportSingle, ext
           />
           <span className="text-xs text-gray-500 dark:text-gray-400">Extract tasks from notes</span>
         </label>
+        {extractFromNotes && (
+          <p className="text-xs text-amber-600 dark:text-amber-500 leading-relaxed">
+            Tasks will be extracted from the notes above. The text box is inactive and its content will not be included in exports. It will be cleared on import.
+          </p>
+        )}
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={onExportSingle} className="btn-secondary flex items-center gap-1.5 text-xs py-1 px-3">
             <Download size={12} /> Export JSON
@@ -181,6 +188,11 @@ function TasksColumn({ label, badgeClass, section, onChange, onExportSingle, ext
               onChange={(e) => setImportText(e.target.value)}
               placeholder={'Paste AI response:\n{"tasks": [{"text":"...", "assignee":"...", "status":"planned"}]}'}
             />
+            {extractFromNotes && section?.content?.trim() && (
+              <p className="text-xs text-amber-600 dark:text-amber-500">
+                Note: your task notes will be cleared after import — tasks are being extracted from the notes section above.
+              </p>
+            )}
             {importError && <p className="text-xs text-red-500 dark:text-red-400">{importError}</p>}
             <button
               onClick={() => {
@@ -198,7 +210,7 @@ function TasksColumn({ label, badgeClass, section, onChange, onExportSingle, ext
                     endDate: t.endDate || '',
                     createdAt: new Date().toISOString(),
                   }))
-                  onChange({ items: [...items, ...newItems] })
+                  onChange({ items: [...items, ...newItems], ...(extractFromNotes ? { content: '' } : {}) })
                   setImportText(''); setImportOpen(false); setImportError('')
                 } catch { setImportError('Invalid JSON — check the response format.') }
               }}
@@ -286,11 +298,12 @@ export default function NotesOverlay({
 
   const handleExportSingleTasks = (mode) => {
     const section = mode === 'standard' ? standardTasksSection : internalTasksSection
+    const extractOn = mode === 'standard' ? standardExtract : internalExtract
     const tone = mode === 'standard' ? standardTone : internalTone
     try {
       const effectiveSection = section || { id: 'tmp', label: 'Tasks', content: '', items: [] }
       const prompt = buildSectionAIPrompt(
-        { ...effectiveSection, type: 'notes', content: effectiveSection.content || '' },
+        { ...effectiveSection, type: 'notes', content: extractOn ? '' : (effectiveSection.content || '') },
         note || {},
         meetingNotes || [],
         tone,
@@ -386,7 +399,7 @@ export default function NotesOverlay({
           createdAt: new Date().toISOString(),
         }))
         const existing = standardTasksSection?.items || []
-        onChangeStandardTasks({ items: [...existing, ...newItems] }); updated = true
+        onChangeStandardTasks({ items: [...existing, ...newItems], ...(standardExtract ? { content: '' } : {}) }); updated = true
       }
 
       if (result.internal_tasks && tasksEnabled && internalEnabled) {
@@ -400,7 +413,7 @@ export default function NotesOverlay({
           createdAt: new Date().toISOString(),
         }))
         const existing = internalTasksSection?.items || []
-        onChangeInternalTasks({ items: [...existing, ...newItems] }); updated = true
+        onChangeInternalTasks({ items: [...existing, ...newItems], ...(internalExtract ? { content: '' } : {}) }); updated = true
       }
 
       if (updated) {
@@ -426,7 +439,7 @@ export default function NotesOverlay({
         <div className="flex items-center gap-2.5">
           <Brain size={18} className="text-purple-500 shrink-0" />
           <div>
-            <h2 className="font-bold text-gray-900 dark:text-white text-sm">Meeting Notes</h2>
+            <h2 className="font-bold text-gray-900 dark:text-white text-sm">{showTasks ? 'Meeting Notes + Tasks' : 'Meeting Notes'}</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {[note?.customer, note?.date].filter(Boolean).join(' · ')}
             </p>
