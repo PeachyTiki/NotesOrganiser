@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import {
   BookOpen, ChevronRight, ChevronDown, Calendar,
   Folder, FolderOpen, FileDown, Search, Copy, Pencil, Trash2,
-  ArrowUpDown, FileEdit, X, Check, Brain, CheckSquare, Circle,
+  ArrowUpDown, FileEdit, X, Check, Brain, CheckSquare, Circle, SlidersHorizontal,
 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
@@ -151,7 +151,11 @@ export default function LibraryPage() {
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const [sortDir, setSortDir] = useState('desc')
+  const [sortBy, setSortBy] = useState('newest_edited')
+  const [filterCustomer, setFilterCustomer] = useState('')
+  const [filterEventType, setFilterEventType] = useState('')
+  const [filterPendingActions, setFilterPendingActions] = useState(false)
+  const [filterHasTopics, setFilterHasTopics] = useState(false)
   const [openCustomers, setOpenCustomers] = useState({})
   const [openSubgroups, setOpenSubgroups] = useState({})
 
@@ -161,6 +165,23 @@ export default function LibraryPage() {
     recurringMeetings.forEach((r) => { m[r.id] = r })
     return m
   }, [recurringMeetings])
+
+  const allCustomers = useMemo(() => {
+    const set = new Set()
+    meetingNotes.forEach((n) => {
+      const c = (n.recurringMeetingId && rmMap[n.recurringMeetingId])
+        ? rmMap[n.recurringMeetingId].customer || ''
+        : n.customer || ''
+      if (c) set.add(c)
+    })
+    return [...set].sort()
+  }, [meetingNotes, rmMap])
+
+  const allEventTypes = useMemo(() => {
+    const set = new Set()
+    meetingNotes.forEach((n) => { if (n.eventType) set.add(n.eventType) })
+    return [...set].sort()
+  }, [meetingNotes])
 
   const filteredNotes = useMemo(() => {
     let list = meetingNotes
@@ -185,17 +206,37 @@ export default function LibraryPage() {
     }
     if (dateFrom) list = list.filter((n) => (n.date || '') >= dateFrom)
     if (dateTo)   list = list.filter((n) => (n.date || '') <= dateTo)
+    if (filterCustomer) list = list.filter((n) => {
+      const c = (n.recurringMeetingId && rmMap[n.recurringMeetingId])
+        ? rmMap[n.recurringMeetingId].customer || ''
+        : n.customer || ''
+      return c === filterCustomer
+    })
+    if (filterEventType) list = list.filter((n) => (n.eventType || '') === filterEventType)
+    if (filterPendingActions) list = list.filter((n) =>
+      (n.sections || []).some((s) => s.type === 'actionItems' &&
+        (s.items || []).some((i) => i.status !== 'done' && i.task))
+    )
+    if (filterHasTopics) list = list.filter((n) =>
+      (n.sections || []).some((s) => s.type === 'topics' && (s.items || []).some((i) => i.topic))
+    )
     return list
-  }, [meetingNotes, search, dateFrom, dateTo])
+  }, [meetingNotes, search, dateFrom, dateTo, filterCustomer, filterEventType, filterPendingActions, filterHasTopics, rmMap])
 
   // Build 2-level hierarchy: Customer > (RecurringMeeting | One-off Notes)
   const libraryGroups = useMemo(() => {
     const customerMap = {}
 
-    const sortFn = (a, b) =>
-      sortDir === 'desc'
-        ? noteTs(b).localeCompare(noteTs(a))
-        : noteTs(a).localeCompare(noteTs(b))
+    const sortFn = (a, b) => {
+      switch (sortBy) {
+        case 'oldest_edited': return noteTs(a).localeCompare(noteTs(b))
+        case 'date_desc':     return (b.date || '').localeCompare(a.date || '')
+        case 'date_asc':      return (a.date || '').localeCompare(b.date || '')
+        case 'title_asc':     return (a.title || '').localeCompare(b.title || '')
+        case 'title_desc':    return (b.title || '').localeCompare(a.title || '')
+        default:              return noteTs(b).localeCompare(noteTs(a))
+      }
+    }
 
     filteredNotes.forEach((n) => {
       let customerName, subgroupKey, subgroupLabel, subgroupSubtitle
@@ -238,10 +279,14 @@ export default function LibraryPage() {
         if (b.customerName === 'Uncategorised') return -1
         return a.customerName.localeCompare(b.customerName)
       })
-  }, [filteredNotes, rmMap, sortDir])
+  }, [filteredNotes, rmMap, sortBy])
 
-  const hasFilters = search || dateFrom || dateTo
-  const clearFilters = () => { setSearch(''); setDateFrom(''); setDateTo('') }
+  const hasFilters = search || dateFrom || dateTo || filterCustomer || filterEventType || filterPendingActions || filterHasTopics
+  const clearFilters = () => {
+    setSearch(''); setDateFrom(''); setDateTo('')
+    setFilterCustomer(''); setFilterEventType('')
+    setFilterPendingActions(false); setFilterHasTopics(false)
+  }
 
   const toggleCustomer = (name) => setOpenCustomers((s) => ({ ...s, [name]: !s[name] }))
   const toggleSubgroup = (key) => setOpenSubgroups((s) => ({ ...s, [key]: !s[key] }))
@@ -300,43 +345,92 @@ export default function LibraryPage() {
 
       {/* Filter bar */}
       <div className="card p-3 mb-4 space-y-2">
-        <div className="flex gap-2 flex-wrap">
-          <div className="relative flex-1 min-w-48">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input
-              className="input pl-8 text-sm w-full"
-              placeholder="Search title, customer, content, participant…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+        {/* Search */}
+        <div className="relative">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            className="input pl-8 text-sm w-full"
+            placeholder="Search title, customer, content, participant…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        {/* Sort + dropdowns */}
+        <div className="flex gap-2 flex-wrap items-center">
+          <div className="flex items-center gap-1.5">
+            <ArrowUpDown size={12} className="text-gray-400 shrink-0" />
+            <select
+              className="input text-xs py-1 w-auto"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="newest_edited">Last edited ↓</option>
+              <option value="oldest_edited">Last edited ↑</option>
+              <option value="date_desc">Meeting date ↓</option>
+              <option value="date_asc">Meeting date ↑</option>
+              <option value="title_asc">Title A → Z</option>
+              <option value="title_desc">Title Z → A</option>
+            </select>
           </div>
+          {allCustomers.length > 1 && (
+            <select
+              className="input text-xs py-1 w-auto"
+              value={filterCustomer}
+              onChange={(e) => setFilterCustomer(e.target.value)}
+            >
+              <option value="">All customers</option>
+              {allCustomers.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
+          {allEventTypes.length > 0 && (
+            <select
+              className="input text-xs py-1 w-auto"
+              value={filterEventType}
+              onChange={(e) => setFilterEventType(e.target.value)}
+            >
+              <option value="">All types</option>
+              {allEventTypes.map((e) => <option key={e} value={e}>{e}</option>)}
+            </select>
+          )}
+        </div>
+
+        {/* Toggle filters */}
+        <div className="flex gap-2 flex-wrap items-center">
+          <span className="text-xs text-gray-400 shrink-0 flex items-center gap-1">
+            <SlidersHorizontal size={11} /> Filters:
+          </span>
           <button
-            onClick={() => setSortDir((d) => d === 'desc' ? 'asc' : 'desc')}
-            className="input text-sm flex items-center gap-1.5 w-auto px-3 text-gray-600 dark:text-gray-300 hover:border-accent transition-colors"
-            title="Toggle sort order"
+            onClick={() => setFilterPendingActions((v) => !v)}
+            className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1 ${
+              filterPendingActions
+                ? 'bg-amber-50 dark:bg-amber-950 border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400'
+                : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
+            }`}
           >
-            <ArrowUpDown size={13} className="text-gray-400" />
-            {sortDir === 'desc' ? 'Newest first' : 'Oldest first'}
+            <CheckSquare size={11} /> Pending actions
+          </button>
+          <button
+            onClick={() => setFilterHasTopics((v) => !v)}
+            className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1 ${
+              filterHasTopics
+                ? 'bg-indigo-50 dark:bg-indigo-950 border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400'
+                : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
+            }`}
+          >
+            Has open topics
           </button>
         </div>
+
+        {/* Date range */}
         <div className="flex gap-2 items-center flex-wrap">
           <span className="text-xs text-gray-400 shrink-0">Date range:</span>
-          <input
-            type="date"
-            className="input text-sm w-40"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-          />
+          <input type="date" className="input text-xs py-1 w-36" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           <span className="text-xs text-gray-400">—</span>
-          <input
-            type="date"
-            className="input text-sm w-40"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-          />
+          <input type="date" className="input text-xs py-1 w-36" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           {hasFilters && (
-            <button onClick={clearFilters} className="text-xs text-accent hover:underline flex items-center gap-1">
-              <X size={11} /> Clear filters
+            <button onClick={clearFilters} className="text-xs text-accent hover:underline flex items-center gap-1 ml-auto">
+              <X size={11} /> Clear all
             </button>
           )}
         </div>
