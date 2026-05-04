@@ -335,7 +335,7 @@ export default function TemplateEditor({ template, onClose }) {
               </label>
             </div>
 
-            <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+            <input ref={logoRef} type="file" accept="image/*,.svg" className="hidden" onChange={handleLogoUpload} />
             <button className="btn-secondary flex items-center gap-2 mb-3" onClick={() => logoRef.current.click()}>
               <Image size={15} /> {form.logo?.data ? 'Replace Logo' : 'Upload Logo'}
             </button>
