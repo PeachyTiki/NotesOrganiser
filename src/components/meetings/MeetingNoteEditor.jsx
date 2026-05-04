@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { ArrowLeft, Save, Download, RefreshCw, Globe, Plus, Trash2, Clock, ChevronRight, ChevronDown, CheckSquare, MessageSquare, LayoutTemplate, X } from 'lucide-react'
+import { ArrowLeft, Save, Download, RefreshCw, Globe, Plus, Trash2, Clock, ChevronRight, ChevronDown, CheckSquare, MessageSquare, LayoutTemplate, X, Lock } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import html2canvas from 'html2canvas'
 import { useApp } from '../../context/AppContext'
@@ -17,6 +17,7 @@ import { makeT, getSystemLanguage, LANGUAGES } from '../../utils/i18n'
 import NoteExportCanvas from './NoteExportCanvas'
 import A4Preview from './A4Preview'
 import SectionList from './SectionList'
+import Toggle from '../Toggle'
 
 const EXPORT_FORMATS = [
   { value: 'pdf',  label: 'PDF (.pdf)' },
@@ -83,6 +84,7 @@ function processTopicStatuses(sections) {
 }
 
 function emptyNote(recurringMeeting, settings) {
+  const defaultModes = recurringMeeting?.defaultModes || { standard: true, internal: false }
   return {
     id: uuid(),
     recurringMeetingId: recurringMeeting?.id || '',
@@ -95,6 +97,9 @@ function emptyNote(recurringMeeting, settings) {
     participants: buildParticipants(recurringMeeting, settings),
     templateId: recurringMeeting?.templateId || '',
     sections: [{ id: uuid(), type: 'text', label: '', content: '' }],
+    modes: defaultModes,
+    internalSections: [{ id: uuid(), type: 'text', label: '', content: '' }],
+    internalTemplateId: '',
     displayOptions: { showParticipants: true, showRoles: true, showFirms: true, showEventType: true },
     createdAt: new Date().toISOString(),
   }
@@ -126,6 +131,10 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
   const [contextOpen, setContextOpen] = useState(true)
   const [exportFormat, setExportFormat] = useState(settings?.exportFormat || 'pdf')
   const [formCollapsed, setFormCollapsed] = useState(false)
+  const [activeMode, setActiveMode] = useState(() => {
+    const m = (existingNote || {}).modes || {}
+    return m.internal && !m.standard ? 'internal' : 'standard'
+  })
   const [presetsOpen, setPresetsOpen] = useState(false)
   const [presetNameInput, setPresetNameInput] = useState('')
   const [presetNameError, setPresetNameError] = useState(false)
@@ -143,6 +152,20 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
   const isOneOff = !note.recurringMeetingId
   const autoTitle = computeAutoTitle(note, settings)
   const effectiveTitle = note.title.trim() || autoTitle || 'Untitled Meeting'
+
+  const internalNotesEnabled = !!settings?.internalNotesEnabled
+  const standardActive = note.modes?.standard !== false
+  const internalActive = internalNotesEnabled && !!note.modes?.internal
+  const bothActive = standardActive && internalActive
+  const resolvedInternalTemplate = templates.find((tpl) => tpl.id === note.internalTemplateId) || null
+
+  const toggleMode = (mode, val) => {
+    const next = { standard: note.modes?.standard !== false, internal: !!note.modes?.internal, [mode]: val }
+    if (!next.standard && !next.internal) return
+    set('modes', next)
+    if (!val && activeMode === mode) setActiveMode(mode === 'standard' ? 'internal' : 'standard')
+    if (val && !bothActive) setActiveMode(mode)
+  }
 
   const updateParticipant = (id, key, value) =>
     set('participants', note.participants.map((p) => (p.id === id ? { ...p, [key]: value } : p)))
@@ -223,8 +246,9 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
 
   const handleSave = () => {
     const processed = processTopicStatuses(note.sections)
-    const saved = { ...finalNote(), sections: processed, updatedAt: new Date().toISOString() }
-    setNote((n) => ({ ...n, sections: processed }))
+    const processedInternal = processTopicStatuses(note.internalSections || [])
+    const saved = { ...finalNote(), sections: processed, internalSections: processedInternal, updatedAt: new Date().toISOString() }
+    setNote((n) => ({ ...n, sections: processed, internalSections: processedInternal }))
     saveMeetingNote(saved)
     onClose()
   }
@@ -236,20 +260,24 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
       // Wait for the off-screen canvas to fully render (charts need a moment)
       await new Promise((r) => setTimeout(r, 350))
 
-      const processed = processTopicStatuses(note.sections)
-      const exportedNote = { ...finalNote(), sections: processed }
-      const base = `${formatDateForFilename(note.date)}_${effectiveTitle.replace(/\s+/g, '_')}`
+      const isExportingInternal = activeMode === 'internal' && internalActive
+      const sectionsToExport = isExportingInternal
+        ? processTopicStatuses(note.internalSections || [])
+        : processTopicStatuses(note.sections)
+      const templateToExport = isExportingInternal ? resolvedInternalTemplate : resolvedTemplate
+      const exportedNote = { ...finalNote(), sections: sectionsToExport }
+      const modeTag = isExportingInternal ? '_internal' : ''
+      const base = `${formatDateForFilename(note.date)}_${effectiveTitle.replace(/\s+/g, '_')}${modeTag}`
 
       if (exportFormat === 'pdf') {
-        const chartImgs = await captureChartImages(processed)
-        const pdf = await exportNoteAsPDF(exportedNote, resolvedTemplate, chartImgs, exportT)
+        const chartImgs = await captureChartImages(sectionsToExport)
+        const pdf = await exportNoteAsPDF(exportedNote, templateToExport, chartImgs, exportT)
         downloadPDF(pdf, base + '.pdf')
       } else if (exportFormat === 'docx') {
-        const chartImgs = await captureChartImages(processed)
-        const blob = await exportNoteAsWord(exportedNote, resolvedTemplate, chartImgs, exportT)
+        const chartImgs = await captureChartImages(sectionsToExport)
+        const blob = await exportNoteAsWord(exportedNote, templateToExport, chartImgs, exportT)
         downloadBlob(blob, base + '.docx')
       } else if (exportFormat === 'png') {
-        // PNG: capture full canvas as one image via html2canvas
         const el = document.getElementById('note-export-canvas')
         if (!el) throw new Error('Canvas element not found')
         const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false })
@@ -258,8 +286,10 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
 
       // Update note with thumbnail + processed sections
       const thumb = await captureThumbPNG('note-export-canvas')
-      setNote((n) => ({ ...n, sections: processed }))
-      saveMeetingNote({ ...exportedNote, exportData: thumb, updatedAt: new Date().toISOString() })
+      const processedStandard = processTopicStatuses(note.sections)
+      const processedInternal = processTopicStatuses(note.internalSections || [])
+      setNote((n) => ({ ...n, sections: processedStandard, internalSections: processedInternal }))
+      saveMeetingNote({ ...finalNote(), sections: processedStandard, internalSections: processedInternal, exportData: thumb, updatedAt: new Date().toISOString() })
 
       // Persist last-used format
       if (exportFormat !== settings?.exportFormat) {
@@ -273,6 +303,11 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
   }
 
   const previewNote = { ...finalNote() }
+  const previewSections = activeMode === 'internal' && internalActive
+    ? (note.internalSections || [])
+    : (note.sections || [])
+  const previewTemplate = activeMode === 'internal' && internalActive ? resolvedInternalTemplate : resolvedTemplate
+  const previewNoteForMode = { ...previewNote, sections: previewSections }
 
   return (
     <div>
@@ -341,6 +376,47 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
         </div>
       </div>
 
+      {/* Internal Notes mode toggles (visible only when feature is enabled) */}
+      {internalNotesEnabled && (
+        <div className="flex items-center gap-4 mb-4 px-1">
+          <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1 shrink-0">
+            <Lock size={11} /> Note modes:
+          </span>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <Toggle
+              checked={standardActive}
+              onChange={(val) => toggleMode('standard', val)}
+              disabled={standardActive && !internalActive}
+            />
+            <span className={`text-xs font-medium ${standardActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}`}>
+              Standard
+            </span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <Toggle
+              checked={internalActive}
+              onChange={(val) => toggleMode('internal', val)}
+              disabled={internalActive && !standardActive}
+            />
+            <span className={`text-xs font-medium ${internalActive ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}`}>
+              Internal
+            </span>
+          </label>
+          {bothActive && (
+            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-full p-0.5 ml-2">
+              <button
+                onClick={() => setActiveMode('standard')}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeMode === 'standard' ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
+              >Standard</button>
+              <button
+                onClick={() => setActiveMode('internal')}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeMode === 'internal' ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
+              >Internal</button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Floating bottom-centre panel toggles */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full shadow-lg overflow-hidden select-none">
         <button
@@ -375,11 +451,20 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
           {/* Template + language + display options */}
           <div className="card p-4 space-y-3">
             <div>
-              <label className="label">Theme / Template</label>
-              <select className="input" value={note.templateId} onChange={(e) => set('templateId', e.target.value)}>
-                <option value="">Default (plain)</option>
-                {templates.map((tpl) => <option key={tpl.id} value={tpl.id}>{tpl.name}</option>)}
-              </select>
+              <label className="label">
+                {internalNotesEnabled && bothActive ? (activeMode === 'internal' ? 'Internal Template' : 'Standard Template') : 'Theme / Template'}
+              </label>
+              {internalNotesEnabled && activeMode === 'internal' ? (
+                <select className="input" value={note.internalTemplateId || ''} onChange={(e) => set('internalTemplateId', e.target.value)}>
+                  <option value="">Default (plain)</option>
+                  {templates.map((tpl) => <option key={tpl.id} value={tpl.id}>{tpl.name}</option>)}
+                </select>
+              ) : (
+                <select className="input" value={note.templateId} onChange={(e) => set('templateId', e.target.value)}>
+                  <option value="">Default (plain)</option>
+                  {templates.map((tpl) => <option key={tpl.id} value={tpl.id}>{tpl.name}</option>)}
+                </select>
+              )}
             </div>
             <div>
               <label className="label flex items-center gap-1.5">
@@ -540,7 +625,9 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
           {/* Sections */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="section-title text-base">Content Sections</h2>
+              <h2 className="section-title text-base">
+                {internalNotesEnabled && activeMode === 'internal' ? 'Internal Content Sections' : 'Content Sections'}
+              </h2>
               <div className="relative" data-presets-container>
                 <button
                   onClick={() => setPresetsOpen((v) => !v)}
@@ -639,22 +726,39 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
                 )}
               </div>
             </div>
-            <SectionList
-              sections={note.sections || []}
-              onChange={(sections) => set('sections', sections)}
-              t={t}
-              note={{ ...note, title: effectiveTitle }}
-              meetingNotes={meetingNotes}
-              defaultTone={recurringMeeting?.defaultNotesTone || settings?.aiTone}
-              contextDepth={settings?.notesContextDepth ?? 4}
-            />
+            {internalNotesEnabled && activeMode === 'internal' ? (
+              <SectionList
+                sections={note.internalSections || []}
+                onChange={(sections) => set('internalSections', sections)}
+                t={t}
+                note={{ ...note, title: effectiveTitle }}
+                meetingNotes={meetingNotes}
+                defaultTone={recurringMeeting?.defaultNotesTone || settings?.aiTone}
+                contextDepth={settings?.notesContextDepth ?? 4}
+              />
+            ) : (
+              <SectionList
+                sections={note.sections || []}
+                onChange={(sections) => set('sections', sections)}
+                t={t}
+                note={{ ...note, title: effectiveTitle }}
+                meetingNotes={meetingNotes}
+                defaultTone={recurringMeeting?.defaultNotesTone || settings?.aiTone}
+                contextDepth={settings?.notesContextDepth ?? 4}
+              />
+            )}
           </div>
         </div>
 
         {/* Right column: live preview — independently scrollable */}
         {previewOpen && (
           <div className="flex-1 min-w-0 overflow-y-auto pb-6">
-            <A4Preview note={previewNote} template={resolvedTemplate} t={exportT} />
+            <A4Preview
+              note={previewNoteForMode}
+              template={previewTemplate}
+              t={exportT}
+              isInternal={activeMode === 'internal' && internalActive}
+            />
           </div>
         )}
       </div>
@@ -662,7 +766,12 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, on
       {/* Off-screen export canvas */}
       {showCanvas && (
         <div id="offscreen-export-canvas" className="fixed -left-[9999px] top-0 pointer-events-none">
-          <NoteExportCanvas note={finalNote()} template={resolvedTemplate} t={exportT} />
+          <NoteExportCanvas
+            note={{ ...finalNote(), sections: activeMode === 'internal' && internalActive ? (note.internalSections || []) : (note.sections || []) }}
+            template={activeMode === 'internal' && internalActive ? resolvedInternalTemplate : resolvedTemplate}
+            t={exportT}
+            isInternal={activeMode === 'internal' && internalActive}
+          />
         </div>
       )}
     </div>
