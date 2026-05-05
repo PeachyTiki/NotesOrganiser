@@ -403,12 +403,18 @@ export default function NotesOverlay({
         aiPromptMode,
       )
       // Override with tasks-specific instructions
+      const existingItems = (effectiveSection.items || []).map((i) => ({ text: i.text || '', assignee: i.assignee || '', status: i.status || 'planned' }))
       prompt._type = 'tasks_section_prompt'
-      prompt.instructions.task = `Extract action items and tasks from the meeting transcript for the ${mode} tasks list. Return structured JSON with a "tasks" array.`
+      prompt.current_section.existing_tasks = existingItems
+      prompt.instructions.task = `Extract or structure action items and tasks for the ${mode} tasks list. Return ONLY new tasks not already in existing_tasks.`
+      prompt.instructions.no_duplicate_rule = existingItems.length > 0
+        ? 'CRITICAL: existing_tasks shows tasks ALREADY saved in the system. DO NOT include any of them in your output — they are already there. Only return tasks that are genuinely new and not already listed. Compare by task text before including any item.'
+        : undefined
       prompt.instructions.output_format = [
         'CRITICAL: Respond with ONLY a raw JSON object. No code fences.',
-        'Required format: {"tasks": [{"text": "task description", "assignee": "name or empty", "status": "planned", "startDate": "YYYY-MM-DD or empty", "endDate": "YYYY-MM-DD or empty"}]}',
+        'Required format: {"tasks": [{"text": "task description", "assignee": "name or empty string", "status": "planned", "startDate": "YYYY-MM-DD or empty string", "endDate": "YYYY-MM-DD or empty string"}]}',
         'Status values: planned, inProgress, complete, blocked.',
+        'startDate and endDate: fill in if a start date or deadline is mentioned for the task, otherwise use empty string.',
         ...(aiPromptMode === 'clipboard' ? ['ZERO additional text. Start with { and end with }.'] : []),
       ].join(' ')
       const json = JSON.stringify(prompt, null, 2)

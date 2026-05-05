@@ -588,11 +588,14 @@ export function buildCombinedNotesAndTasksAIPrompt(
         standardTasksSection ? (standardExtract ? 'standard tasks (extract action items from standard notes)' : 'standard tasks (structure the raw task input)') : null,
         internalTasksSection ? (internalExtract ? 'internal tasks (extract action items from internal notes)' : 'internal tasks (structure the raw task input)') : null,
       ].filter(Boolean).join(', ') + '.',
+      no_duplicate_tasks_rule: (standardTasksSection || internalTasksSection)
+        ? 'CRITICAL FOR TASKS: Each tasks section contains an existing_items array showing tasks ALREADY saved in the system. DO NOT include any of these existing tasks in your output — they are already there and will be duplicated if you repeat them. Only return tasks that are genuinely NEW and not already present in existing_items. Compare by task text before including any item.'
+        : undefined,
       extract_standard_tasks_instruction: standardExtract && standardTasksSection
-        ? 'For the standard task list: scan the standard notes transcript for explicit action items, to-dos, and commitments. Extract them as structured tasks. Do not invent tasks not clearly stated.'
+        ? 'For the standard task list: scan the standard notes transcript for explicit action items, to-dos, and commitments. Extract only NEW tasks not already in existing_items. Do not invent tasks not clearly stated.'
         : undefined,
       extract_internal_tasks_instruction: internalExtract && internalTasksSection
-        ? 'For the internal task list: scan the internal notes transcript for explicit action items, to-dos, and commitments. Extract them as structured tasks. Do not invent tasks not clearly stated.'
+        ? 'For the internal task list: scan the internal notes transcript for explicit action items, to-dos, and commitments. Extract only NEW tasks not already in existing_items. Do not invent tasks not clearly stated.'
         : undefined,
       context_rule: previousSessions.length > 0
         ? [
@@ -607,7 +610,7 @@ export function buildCombinedNotesAndTasksAIPrompt(
         'CRITICAL: Respond with ONLY a raw JSON object. No code fences, no explanatory text.',
         `Required format: ${outputExample}`,
         'For notes content strings, use markdown: ## headings, - bullets, **bold** for key terms.',
-        'For task arrays, each item must have: text, assignee (string or empty), status (planned/inProgress/complete/blocked), startDate (YYYY-MM-DD or empty), endDate (YYYY-MM-DD or empty).',
+        'For task arrays, return ONLY new tasks not already in existing_items. Each item must have: text, assignee (string or empty), status (planned/inProgress/complete/blocked), startDate (YYYY-MM-DD or empty string — set if a start date is mentioned for this task), endDate (YYYY-MM-DD or empty string — set if a deadline or due date is mentioned for this task).',
         ...(promptMode === 'clipboard' ? ['ZERO additional text. Start with { and end with }.'] : []),
       ].join(' '),
     },
