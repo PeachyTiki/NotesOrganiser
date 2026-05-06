@@ -18,7 +18,7 @@ function formatDate(dateStr) {
 }
 
 export default function TasksPage() {
-  const { meetingNotes, settings, saveMeetingNote } = useApp()
+  const { meetingNotes, settings, saveMeetingNote, triggerNoteSync } = useApp()
   const [filterCustomer, setFilterCustomer] = useState('')
   const [filterMeeting, setFilterMeeting] = useState('')
   const [filterAssignee, setFilterAssignee] = useState('')
@@ -119,6 +119,7 @@ export default function TasksPage() {
       updatedAt: new Date().toISOString(),
     }
     saveMeetingNote(updated)
+    triggerNoteSync(updated)
   }
 
   const toggleSort = (col) => {

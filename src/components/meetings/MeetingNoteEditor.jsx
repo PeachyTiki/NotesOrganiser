@@ -113,7 +113,7 @@ function emptyNote(recurringMeeting, settings) {
 
 
 export default function MeetingNoteEditor({ recurringMeetingId, existingNote, prefilledCustomer, onClose }) {
-  const { recurringMeetings, templates, saveMeetingNote, meetingNotes, settings, update, t, sectionPresets, saveSectionPreset, deleteSectionPreset, syncConfigs, syncFileMap, updateSyncFileMap } = useApp()
+  const { recurringMeetings, templates, saveMeetingNote, meetingNotes, settings, update, t, sectionPresets, saveSectionPreset, deleteSectionPreset, syncConfigs, syncFileMap, updateSyncFileMap, triggerNoteSync } = useApp()
   const effectiveRecurringMeetingId = existingNote?.recurringMeetingId || recurringMeetingId
   const recurringMeeting = recurringMeetings.find((m) => m.id === effectiveRecurringMeetingId)
 
@@ -582,15 +582,9 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
           </>
         )}
         <button
-          onClick={() => {
-            if (bothActive) {
-              setNotesOverlayOpen(true)
-            } else {
-              setOpenNotesToken(Date.now())
-            }
-          }}
+          onClick={() => setNotesOverlayOpen(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950 border border-purple-200 dark:border-purple-800 transition-colors"
-          title={bothActive ? 'Open combined notes editor' : 'Jump to notes section'}
+          title="Open notes editor"
         >
           <Brain size={13} /> Notes
         </button>
@@ -1030,6 +1024,34 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
               }
               return { ...prev, internalSections: [...secs, { id: uuid(), type: 'tasks', label: '', items: [], ...patch }] }
             })
+          }}
+          onStatusChangeStandardTasks={(patch) => {
+            const secs = note.sections || []
+            const idx = secs.findIndex((s) => s.type === 'tasks')
+            let updatedNote
+            if (idx >= 0) {
+              const updatedSecs = [...secs]; updatedSecs[idx] = { ...updatedSecs[idx], ...patch }
+              updatedNote = { ...note, sections: updatedSecs, updatedAt: new Date().toISOString() }
+            } else {
+              updatedNote = { ...note, sections: [...secs, { id: uuid(), type: 'tasks', label: '', items: [], ...patch }], updatedAt: new Date().toISOString() }
+            }
+            setNote(updatedNote)
+            saveMeetingNote(updatedNote)
+            triggerNoteSync(updatedNote)
+          }}
+          onStatusChangeInternalTasks={(patch) => {
+            const secs = note.internalSections || []
+            const idx = secs.findIndex((s) => s.type === 'tasks')
+            let updatedNote
+            if (idx >= 0) {
+              const updatedSecs = [...secs]; updatedSecs[idx] = { ...updatedSecs[idx], ...patch }
+              updatedNote = { ...note, internalSections: updatedSecs, updatedAt: new Date().toISOString() }
+            } else {
+              updatedNote = { ...note, internalSections: [...secs, { id: uuid(), type: 'tasks', label: '', items: [], ...patch }], updatedAt: new Date().toISOString() }
+            }
+            setNote(updatedNote)
+            saveMeetingNote(updatedNote)
+            triggerNoteSync(updatedNote)
           }}
           onClose={() => setNotesOverlayOpen(false)}
         />

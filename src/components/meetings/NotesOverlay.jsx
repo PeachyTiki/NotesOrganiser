@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { X, Brain, Download, Settings2, ChevronDown, ChevronRight, CheckSquare, Clipboard, List, AlignLeft, ArrowLeft, Trash2 } from 'lucide-react'
+import React, { useState, useRef } from 'react'
+import { X, Brain, Download, Settings2, ChevronDown, ChevronRight, CheckSquare, Clipboard, Trash2 } from 'lucide-react'
 import {
   buildSectionAIPrompt,
   buildCombinedNotesAIPrompt,
@@ -150,26 +150,22 @@ const TASK_STATUS_STYLES = {
   blocked:    'bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300',
 }
 
-function TasksColumn({ label, badgeClass, section, onChange, onExportSingle, extractFromNotes, onExtractChange, aiPromptMode }) {
+function TasksColumn({ label, badgeClass, section, onChange, onStatusChange, onExportSingle, extractFromNotes, onExtractChange, aiPromptMode }) {
   const { settings } = useApp()
-  const [viewMode, setViewMode] = useState('text') // 'text' | 'list'
   const [importOpen, setImportOpen] = useState(false)
   const [importText, setImportText] = useState('')
   const [importError, setImportError] = useState('')
   const items = section?.items || []
-  const prevItemsLengthRef = useRef(items.length)
   const isClipboard = aiPromptMode === 'clipboard'
-
-  // Auto-switch to list view when new tasks are added (after any import)
-  useEffect(() => {
-    if (items.length > prevItemsLengthRef.current) setViewMode('list')
-    prevItemsLengthRef.current = items.length
-  }, [items.length])
 
   const addTask = () => onChange({
     items: [...items, { id: uuid(), text: '', assignee: settings?.yourName || '', status: 'planned', startDate: '', endDate: '', createdAt: new Date().toISOString() }],
   })
-  const updateItem = (id, key, val) => onChange({ items: items.map((i) => i.id === id ? { ...i, [key]: val } : i) })
+  const updateItem = (id, key, val) => {
+    const updatedItems = items.map((i) => i.id === id ? { ...i, [key]: val } : i)
+    onChange({ items: updatedItems })
+    if (key === 'status' && onStatusChange) onStatusChange({ items: updatedItems })
+  }
   const removeItem = (id) => onChange({ items: items.filter((i) => i.id !== id) })
 
   const handleApply = () => {
@@ -190,85 +186,67 @@ function TasksColumn({ label, badgeClass, section, onChange, onExportSingle, ext
 
   return (
     <div className="flex flex-col overflow-hidden h-full border-r border-gray-100 dark:border-gray-700 last:border-r-0">
-      {/* Column header with view toggle */}
-      <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 shrink-0 flex items-center justify-between">
+      <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-700 shrink-0">
         <span className={`text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5 ${badgeClass}`}>
           <CheckSquare size={11} /> {label}
         </span>
-        <button
-          onClick={() => setViewMode((v) => v === 'text' ? 'list' : 'text')}
-          className="flex items-center gap-1 text-xs text-gray-400 hover:text-accent transition-colors"
-          title={viewMode === 'text' ? 'Switch to task list view' : 'Switch to text input view'}
-        >
-          {viewMode === 'text' ? <List size={13} /> : <AlignLeft size={13} />}
-        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        {viewMode === 'text' ? (
-          /* ── Text input view ── */
-          <>
-            <div className={extractFromNotes ? 'opacity-40 pointer-events-none select-none' : ''}>
-              <RichTextEditor
-                value={section?.content || ''}
-                onChange={(html) => onChange({ content: html })}
-                placeholder="Write rough task notes here — e.g. 'John to send proposal by Friday, Alice to review specs'. The AI will structure these into tasks."
-                minHeight={160}
+        {/* Task list — always visible */}
+        <div className="space-y-1.5">
+          {items.map((item) => (
+            <div key={item.id} className="grid gap-1 items-center text-xs" style={{ gridTemplateColumns: '1fr 70px 78px 78px 90px 20px' }}>
+              <input
+                className={`input text-xs py-1 ${item.status === 'complete' ? 'line-through text-green-600 dark:text-green-400' : ''}`}
+                value={item.text} onChange={(e) => updateItem(item.id, 'text', e.target.value)} placeholder="Task…"
               />
+              <input className="input text-xs py-1" value={item.assignee} onChange={(e) => updateItem(item.id, 'assignee', e.target.value)} placeholder="Assignee" />
+              <input type="date" className="input text-xs py-1" value={item.startDate || ''} onChange={(e) => updateItem(item.id, 'startDate', e.target.value)} />
+              <input type="date" className="input text-xs py-1" value={item.endDate || ''} onChange={(e) => updateItem(item.id, 'endDate', e.target.value)} />
+              <select
+                className={`input text-xs py-1 font-medium ${TASK_STATUS_STYLES[item.status] || TASK_STATUS_STYLES.planned}`}
+                value={item.status} onChange={(e) => updateItem(item.id, 'status', e.target.value)}
+              >
+                <option value="planned">Planned</option>
+                <option value="inProgress">In Progress</option>
+                <option value="complete">Complete</option>
+                <option value="blocked">Blocked</option>
+              </select>
+              <button onClick={() => removeItem(item.id)} className="text-gray-300 dark:text-gray-600 hover:text-red-500 transition-colors p-0.5">
+                <Trash2 size={11} />
+              </button>
             </div>
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input type="checkbox" checked={extractFromNotes} onChange={(e) => onExtractChange(e.target.checked)} className="rounded text-accent" />
-              <span className="text-xs text-gray-500 dark:text-gray-400">Extract tasks from notes</span>
-            </label>
-            {extractFromNotes && (
-              <p className="text-xs text-amber-600 dark:text-amber-500 leading-relaxed">
-                Tasks will be extracted from the notes above. This text box is inactive and excluded from exports — it will be cleared on import.
-              </p>
-            )}
-          </>
-        ) : (
-          /* ── Task list view ── */
-          <>
-            <button
-              onClick={() => setViewMode('text')}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-accent transition-colors"
-            >
-              <ArrowLeft size={12} /> Back to text input
-            </button>
-            <div className="space-y-1.5">
-              {items.map((item) => (
-                <div key={item.id} className="grid gap-1 items-center text-xs" style={{ gridTemplateColumns: '1fr 70px 78px 78px 90px 20px' }}>
-                  <input
-                    className={`input text-xs py-1 ${item.status === 'complete' ? 'line-through text-green-600 dark:text-green-400' : ''}`}
-                    value={item.text} onChange={(e) => updateItem(item.id, 'text', e.target.value)} placeholder="Task…"
-                  />
-                  <input className="input text-xs py-1" value={item.assignee} onChange={(e) => updateItem(item.id, 'assignee', e.target.value)} placeholder="Assignee" />
-                  <input type="date" className="input text-xs py-1" value={item.startDate || ''} onChange={(e) => updateItem(item.id, 'startDate', e.target.value)} />
-                  <input type="date" className="input text-xs py-1" value={item.endDate || ''} onChange={(e) => updateItem(item.id, 'endDate', e.target.value)} />
-                  <select
-                    className={`input text-xs py-1 font-medium ${TASK_STATUS_STYLES[item.status] || TASK_STATUS_STYLES.planned}`}
-                    value={item.status} onChange={(e) => updateItem(item.id, 'status', e.target.value)}
-                  >
-                    <option value="planned">Planned</option>
-                    <option value="inProgress">In Progress</option>
-                    <option value="complete">Complete</option>
-                    <option value="blocked">Blocked</option>
-                  </select>
-                  <button onClick={() => removeItem(item.id)} className="text-gray-300 dark:text-gray-600 hover:text-red-500 transition-colors p-0.5">
-                    <Trash2 size={11} />
-                  </button>
-                </div>
-              ))}
-              {items.length === 0 && <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-3">No tasks yet — import or add below</p>}
-            </div>
-            <button onClick={addTask} className="text-xs text-accent hover:text-accent-dark font-medium flex items-center gap-1">
-              + Add Task
-            </button>
-          </>
-        )}
+          ))}
+          {items.length === 0 && <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-2">No tasks yet</p>}
+        </div>
+        <button onClick={addTask} className="text-xs text-accent hover:text-accent-dark font-medium flex items-center gap-1">
+          + Add Task
+        </button>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-2 flex-wrap pt-1">
+        <div className="border-t border-gray-100 dark:border-gray-700 pt-3 space-y-2">
+          {/* Fast-write text field */}
+          <div className={extractFromNotes ? 'opacity-40 pointer-events-none select-none' : ''}>
+            <RichTextEditor
+              value={section?.content || ''}
+              onChange={(html) => onChange({ content: html })}
+              placeholder="Quick notes for AI — e.g. 'John to send proposal by Friday'. The AI will structure these into tasks."
+              minHeight={100}
+            />
+          </div>
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" checked={extractFromNotes} onChange={(e) => onExtractChange(e.target.checked)} className="rounded text-accent" />
+            <span className="text-xs text-gray-500 dark:text-gray-400">Extract tasks from notes instead</span>
+          </label>
+          {extractFromNotes && (
+            <p className="text-xs text-amber-600 dark:text-amber-500 leading-relaxed">
+              Tasks will be extracted from the notes above. The text field is inactive and excluded from exports — it will be cleared on import.
+            </p>
+          )}
+        </div>
+
+        {/* AI import buttons */}
+        <div className="flex items-center gap-2 flex-wrap">
           {isClipboard ? (
             <button
               onClick={() => { onExportSingle(); setImportOpen(true); setImportError('') }}
@@ -291,7 +269,6 @@ function TasksColumn({ label, badgeClass, section, onChange, onExportSingle, ext
           )}
         </div>
 
-        {/* Paste / import panel */}
         {importOpen && (
           <div className="border border-gray-100 dark:border-gray-700 rounded-lg p-3 space-y-2">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Paste AI response</p>
@@ -304,7 +281,7 @@ function TasksColumn({ label, badgeClass, section, onChange, onExportSingle, ext
               autoFocus={isClipboard}
             />
             {extractFromNotes && section?.content?.trim() && (
-              <p className="text-xs text-amber-600 dark:text-amber-500">Note: your task notes will be cleared after import — tasks are extracted from the notes above.</p>
+              <p className="text-xs text-amber-600 dark:text-amber-500">Task notes will be cleared after import — tasks are extracted from the notes above.</p>
             )}
             {importError && <p className="text-xs text-red-500 dark:text-red-400">{importError}</p>}
             <button onClick={handleApply} className="btn-primary flex items-center gap-1.5 text-xs py-1 px-3">
@@ -332,6 +309,8 @@ export default function NotesOverlay({
   onChangeInternal,
   onChangeStandardTasks,
   onChangeInternalTasks,
+  onStatusChangeStandardTasks,
+  onStatusChangeInternalTasks,
   onClose,
 }) {
   const { settings } = useApp()
@@ -593,6 +572,7 @@ export default function NotesOverlay({
                 badgeClass="text-green-600 dark:text-green-400"
                 section={standardTasksSection}
                 onChange={onChangeStandardTasks}
+                onStatusChange={onStatusChangeStandardTasks}
                 onExportSingle={() => handleExportSingleTasks('standard')}
                 extractFromNotes={standardExtract}
                 onExtractChange={setStandardExtract}
@@ -606,6 +586,7 @@ export default function NotesOverlay({
                   badgeClass="text-teal-600 dark:text-teal-400"
                   section={internalTasksSection}
                   onChange={onChangeInternalTasks}
+                  onStatusChange={onStatusChangeInternalTasks}
                   onExportSingle={() => handleExportSingleTasks('internal')}
                   extractFromNotes={internalExtract}
                   onExtractChange={setInternalExtract}
