@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { hexToRgb, darkenHex, lightenHex } from '../utils/colorUtils'
 import { makeT, getSystemLanguage } from '../utils/i18n'
+import { renderNoteToPdfBuffer, arrayBufferToBase64 } from '../utils/export'
+import { noteMatchesSync, noteFilename, notePathParts, syncFileKey } from '../utils/syncManager'
 
 const STORAGE_KEY = 'notes_organiser_v1'
 
@@ -272,6 +274,46 @@ export function AppProvider({ children }) {
     darkMode: state.darkMode,
   })
 
+  const triggerNoteSync = (note) => {
+    if (!window.electronAPI) return
+    const configs = state.syncConfigs || []
+    const fileMap = state.syncFileMap || {}
+    const recurringMeetings = state.recurringMeetings || []
+    const templates = state.templates || []
+    const settings = state.settings || {}
+    const matchingConfigs = configs.filter((cfg) => noteMatchesSync(note, cfg))
+    if (!matchingConfigs.length) return
+    const resolvedTemplate = templates.find((tpl) => tpl.id === note.templateId) || null
+    const resolvedInternalTemplate = templates.find((tpl) => tpl.id === note.internalTemplateId) || null
+    const internalActive = settings.internalNotesEnabled && !!note.modes?.internal
+    const exportT = makeT(note.language)
+    ;(async () => {
+      try {
+        const fileMapUpdates = {}
+        const syncNote = async (noteForSync, template, isInternal) => {
+          const buf = await renderNoteToPdfBuffer(noteForSync, template, exportT)
+          const base64 = arrayBufferToBase64(buf)
+          const filename = noteFilename(note, isInternal)
+          for (const cfg of matchingConfigs) {
+            const key = syncFileKey(note.id, cfg.id, isInternal)
+            const oldPath = fileMap[key]
+            if (oldPath) await window.electronAPI.deleteFile(oldPath).catch(() => {})
+            const pathParts = notePathParts(note, cfg, recurringMeetings)
+            const result = await window.electronAPI.writeFile(pathParts, filename, base64)
+            if (result?.ok && result?.filePath) fileMapUpdates[key] = result.filePath
+          }
+        }
+        await syncNote({ ...note, sections: note.sections || [] }, resolvedTemplate, false)
+        if (internalActive && (note.internalSections || []).length > 0) {
+          await syncNote({ ...note, sections: note.internalSections || [] }, resolvedInternalTemplate, true)
+        }
+        if (Object.keys(fileMapUpdates).length > 0) updateSyncFileMap(fileMapUpdates)
+      } catch (err) {
+        console.error('[auto-sync] error', err)
+      }
+    })()
+  }
+
   const t = makeT(state.settings.language || getSystemLanguage())
 
   return (
@@ -295,6 +337,7 @@ export function AppProvider({ children }) {
         saveSyncConfig,
         deleteSyncConfig,
         updateSyncFileMap,
+        triggerNoteSync,
         t,
       }}
     >
