@@ -51,6 +51,7 @@ export default function MeetingsPage() {
   const [view, setView] = useState('list')
   const [editingMeeting, setEditingMeeting] = useState(null)
   const [prefilledCustomer, setPrefilledCustomer] = useState(null)
+  const [prefilledCustomerId, setPrefilledCustomerId] = useState(null)
   const [noteConfig, setNoteConfig] = useState(null)
   const [masterNotesCustomer, setMasterNotesCustomer] = useState(null)
   const [filterDrafts, setFilterDrafts] = useState(false)
@@ -60,12 +61,20 @@ export default function MeetingsPage() {
   const [filterToday, setFilterToday] = useState(false)
   const [openCustomers, setOpenCustomers] = useState({})
   const [addingCustomer, setAddingCustomer] = useState(false)
+  const [addingCustomerType, setAddingCustomerType] = useState('customer')
   const [newCustomerName, setNewCustomerName] = useState('')
   const [renamingId, setRenamingId] = useState(null)
   const [renameVal, setRenameVal] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [addingSubOf, setAddingSubOf] = useState(null)
+  const [newSubName, setNewSubName] = useState('')
+  const [editingEmojiFor, setEditingEmojiFor] = useState(null)
+  const [emojiVal, setEmojiVal] = useState('')
 
   const newCustomerInputRef = useRef(null)
   const renameInputRef = useRef(null)
+  const newSubInputRef = useRef(null)
+  const emojiInputRef = useRef(null)
 
   useEffect(() => {
     if (addingCustomer && newCustomerInputRef.current) newCustomerInputRef.current.focus()
@@ -74,6 +83,14 @@ export default function MeetingsPage() {
   useEffect(() => {
     if (renamingId && renameInputRef.current) renameInputRef.current.select()
   }, [renamingId])
+
+  useEffect(() => {
+    if (addingSubOf && newSubInputRef.current) newSubInputRef.current.focus()
+  }, [addingSubOf])
+
+  useEffect(() => {
+    if (editingEmojiFor && emojiInputRef.current) emojiInputRef.current.focus()
+  }, [editingEmojiFor])
 
   const noteCountById = useMemo(() => {
     const m = {}
@@ -104,13 +121,6 @@ export default function MeetingsPage() {
     return m
   }, [meetingNotes])
 
-  // Customer name -> customer lookup (case-insensitive)
-  const customerByName = useMemo(() => {
-    const m = {}
-    customers.forEach((c) => { m[c.name.toLowerCase()] = c })
-    return m
-  }, [customers])
-
   // All notes grouped by customer name (for AI context export in master notes)
   const notesByCustomer = useMemo(() => {
     const m = {}
@@ -137,50 +147,59 @@ export default function MeetingsPage() {
     )
   }, [recurringMeetings, search])
 
-  // Group filtered meetings by customer entity
-  const { customerGroups, unassigned } = useMemo(() => {
-    const byId = {}
-    customers.forEach((c) => { byId[c.id] = { customer: c, meetings: [] } })
-    const unassigned = []
-    filteredMeetings.forEach((m) => {
-      const cust = customerByName[(m.customer || '').toLowerCase()]
-      if (cust) {
-        byId[cust.id].meetings.push(m)
-      } else {
-        unassigned.push(m)
+  // Sort + filter helper (reused for each meeting list)
+  const sortAndFilter = useMemo(() => (list) => {
+    let out = list
+    if (filterHasNotes) out = out.filter((m) => (noteCountById[m.id] || 0) > 0)
+    if (filterToday) out = out.filter((m) => isScheduledToday(m.schedule))
+    if (filterDrafts) out = out.filter((m) => (draftNotesByMeetingId[m.id] || []).length > 0)
+    const sorted = [...out]
+    sorted.sort((a, b) => {
+      switch (meetingSort) {
+        case 'name_desc':       return (b.name || '').localeCompare(a.name || '')
+        case 'most_notes':      return (noteCountById[b.id] || 0) - (noteCountById[a.id] || 0)
+        case 'recently_active': return (latestNoteById[b.id] || '').localeCompare(latestNoteById[a.id] || '')
+        case 'no_notes':        return (noteCountById[a.id] || 0) - (noteCountById[b.id] || 0)
+        default:                return (a.name || '').localeCompare(b.name || '')
       }
     })
+    return sorted
+  }, [filterHasNotes, filterToday, filterDrafts, meetingSort, noteCountById, latestNoteById, draftNotesByMeetingId])
 
-    const sortMeetings = (list) => {
-      const sorted = [...list]
-      sorted.sort((a, b) => {
-        switch (meetingSort) {
-          case 'name_desc':       return (b.name || '').localeCompare(a.name || '')
-          case 'most_notes':      return (noteCountById[b.id] || 0) - (noteCountById[a.id] || 0)
-          case 'recently_active': return (latestNoteById[b.id] || '').localeCompare(latestNoteById[a.id] || '')
-          case 'no_notes':        return (noteCountById[a.id] || 0) - (noteCountById[b.id] || 0)
-          default:                return (a.name || '').localeCompare(b.name || '')
-        }
-      })
-      return sorted
-    }
+  // New computed data
+  const topLevelEntities = useMemo(() => {
+    let list = customers.filter((c) => !c.parentId)
+    if (typeFilter !== 'all') list = list.filter((c) => c.type === typeFilter)
+    return list.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  }, [customers, typeFilter])
 
-    const applyFilters = (list) => {
-      let out = list
-      if (filterHasNotes) out = out.filter((m) => (noteCountById[m.id] || 0) > 0)
-      if (filterToday) out = out.filter((m) => isScheduledToday(m.schedule))
-      if (filterDrafts) out = out.filter((m) => (draftNotesByMeetingId[m.id] || []).length > 0)
-      return out
-    }
+  const subEntitiesOf = useMemo(() => {
+    const map = {}
+    customers.filter((c) => c.parentId).forEach((c) => {
+      if (!map[c.parentId]) map[c.parentId] = []
+      map[c.parentId].push(c)
+    })
+    // sort each list by name
+    Object.keys(map).forEach((k) => map[k].sort((a, b) => (a.name || '').localeCompare(b.name || '')))
+    return map
+  }, [customers])
 
-    return {
-      customerGroups: customers.map((c) => ({
-        ...byId[c.id],
-        meetings: sortMeetings(applyFilters(byId[c.id].meetings)),
-      })),
-      unassigned: sortMeetings(applyFilters(unassigned)),
-    }
-  }, [customers, filteredMeetings, customerByName, meetingSort, filterHasNotes, filterToday, filterDrafts, noteCountById, latestNoteById, draftNotesByMeetingId])
+  // Build a set of all entity IDs for legacy check
+  const entityIdSet = useMemo(() => new Set(customers.map((c) => c.id)), [customers])
+
+  const meetingsByEntityId = useMemo(() => {
+    const map = {}
+    filteredMeetings.forEach((m) => {
+      const key = (m.customerId && entityIdSet.has(m.customerId)) ? m.customerId : '__misc__'
+      if (!map[key]) map[key] = []
+      map[key].push(m)
+    })
+    return map
+  }, [filteredMeetings, entityIdSet])
+
+  const miscMeetings = useMemo(() => {
+    return sortAndFilter(meetingsByEntityId['__misc__'] || [])
+  }, [meetingsByEntityId, sortAndFilter])
 
   // Today's meetings (across all customers)
   const todayMeetings = useMemo(
@@ -195,7 +214,8 @@ export default function MeetingsPage() {
       <RecurringMeetingEditor
         meeting={editingMeeting}
         prefilledCustomer={prefilledCustomer}
-        onClose={() => { setView('list'); setEditingMeeting(null); setPrefilledCustomer(null) }}
+        prefilledCustomerId={prefilledCustomerId}
+        onClose={() => { setView('list'); setEditingMeeting(null); setPrefilledCustomer(null); setPrefilledCustomerId(null) }}
       />
     )
   }
@@ -213,24 +233,55 @@ export default function MeetingsPage() {
 
   const toggleCustomer = (id) => setOpenCustomers((s) => ({ ...s, [id]: !s[id] }))
 
-  const handleAddCustomer = () => {
+  const handleAddCustomer = (type = 'customer') => {
     const name = newCustomerName.trim()
     if (!name) return
     const id = uuid()
-    saveCustomer({ id, name, createdAt: new Date().toISOString() })
+    saveCustomer({ id, name, type, emoji: '', parentId: null, createdAt: new Date().toISOString() })
     setOpenCustomers((s) => ({ ...s, [id]: true }))
     setNewCustomerName('')
     setAddingCustomer(false)
   }
 
+  const handleAddSub = (parentId) => {
+    const name = newSubName.trim()
+    if (!name) return
+    const parent = customers.find((c) => c.id === parentId)
+    const id = uuid()
+    saveCustomer({ id, name, type: parent?.type || 'customer', emoji: '', parentId, createdAt: new Date().toISOString() })
+    setOpenCustomers((s) => ({ ...s, [id]: true }))
+    setNewSubName('')
+    setAddingSubOf(null)
+  }
+
   const handleDeleteCustomer = (customer) => {
-    const count = recurringMeetings.filter(
-      (m) => (m.customer || '').toLowerCase() === customer.name.toLowerCase()
-    ).length
-    const msg = count > 0
-      ? `Delete "${customer.name}"? ${count} recurring meeting${count !== 1 ? 's' : ''} will move to Unassigned.`
-      : `Delete customer "${customer.name}"?`
-    if (confirm(msg)) deleteCustomer(customer.id)
+    // Count meetings assigned to this entity
+    const directCount = recurringMeetings.filter((m) => m.customerId === customer.id).length
+    const subs = subEntitiesOf[customer.id] || []
+    const subMeetingCount = subs.reduce((acc, sub) =>
+      acc + recurringMeetings.filter((m) => m.customerId === sub.id).length, 0)
+    const totalMeetings = directCount + subMeetingCount
+
+    let msg = `Delete "${customer.name}"?`
+    if (totalMeetings > 0) msg += ` ${totalMeetings} recurring meeting${totalMeetings !== 1 ? 's' : ''} will move to Misc Meetings.`
+    if (subs.length > 0) msg += ` ${subs.length} sub-entit${subs.length !== 1 ? 'ies' : 'y'} will also be deleted.`
+
+    if (!confirm(msg)) return
+
+    // Move meetings to misc
+    recurringMeetings
+      .filter((m) => m.customerId === customer.id)
+      .forEach((m) => saveRecurringMeeting({ ...m, customerId: '', customer: '' }))
+
+    // Delete sub-entities and their meetings
+    subs.forEach((sub) => {
+      recurringMeetings
+        .filter((m) => m.customerId === sub.id)
+        .forEach((m) => saveRecurringMeeting({ ...m, customerId: '', customer: '' }))
+      deleteCustomer(sub.id)
+    })
+
+    deleteCustomer(customer.id)
   }
 
   const startRename = (customer) => {
@@ -242,14 +293,218 @@ export default function MeetingsPage() {
     const name = renameVal.trim()
     if (name && name !== customer.name) {
       saveCustomer({ ...customer, name })
+      // Update customer field on meetings linked by customerId
       recurringMeetings
-        .filter((m) => (m.customer || '').toLowerCase() === customer.name.toLowerCase())
+        .filter((m) => m.customerId === customer.id)
         .forEach((m) => saveRecurringMeeting({ ...m, customer: name }))
     }
     setRenamingId(null)
   }
 
+  const commitEmoji = (entity) => {
+    saveCustomer({ ...entity, emoji: emojiVal })
+    setEditingEmojiFor(null)
+  }
+
+  const startEditEmoji = (entity) => {
+    setEmojiVal(entity.emoji || '')
+    setEditingEmojiFor(entity.id)
+  }
+
+  const toggleEntityType = (entity) => {
+    const newType = entity.type === 'customer' ? 'project' : 'customer'
+    saveCustomer({ ...entity, type: newType })
+  }
+
   const hasContent = recurringMeetings.length > 0 || customers.length > 0
+
+  // Helper: render meetings grid for an entity
+  const renderMeetingsGrid = (entityId, entityName) => {
+    const meetings = sortAndFilter(meetingsByEntityId[entityId] || [])
+    return (
+      <>
+        {meetings.length === 0 ? (
+          <div className="text-center py-6">
+            <p className="text-sm text-gray-400 dark:text-gray-500 mb-3">No recurring meetings yet</p>
+            <button
+              className="btn-secondary text-sm flex items-center gap-1.5 mx-auto"
+              onClick={() => {
+                setEditingMeeting(null)
+                setPrefilledCustomer(entityName)
+                setPrefilledCustomerId(entityId)
+                setView('editRecurring')
+              }}
+            >
+              <Plus size={14} /> Add Recurring Meeting
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {meetings.map((mtg) => (
+              <RecurringMeetingCard
+                key={mtg.id}
+                meeting={mtg}
+                isToday={isScheduledToday(mtg.schedule)}
+                noteCount={noteCountById[mtg.id] || 0}
+                draftNotes={draftNotesByMeetingId[mtg.id] || []}
+                showDrafts={filterDrafts}
+                onEdit={() => { setEditingMeeting(mtg); setPrefilledCustomer(null); setPrefilledCustomerId(null); setView('editRecurring') }}
+                onWriteNote={() => { setNoteConfig({ recurringMeetingId: mtg.id }); setView('newNote') }}
+                onEditDraft={(draft) => { setNoteConfig({ existingNote: draft }); setView('newNote') }}
+              />
+            ))}
+          </div>
+        )}
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+          <button
+            onClick={() => { setNoteConfig({ prefilledCustomer: entityName }); setView('newNote') }}
+            className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-accent transition-colors"
+          >
+            <FileEdit size={13} /> + {t('miscMeetings')}
+          </button>
+        </div>
+      </>
+    )
+  }
+
+  // Helper: entity header (shared for top-level and sub-entities)
+  const renderEntityHeader = (entity, isSubEntity = false) => {
+    const isOpen = openCustomers[entity.id]
+    const typeBadge = isSubEntity
+      ? (entity.type === 'project' ? 'Sub-Project' : 'Sub-Customer')
+      : (entity.type === 'project' ? 'Project' : 'Customer')
+
+    const directMeetingCount = (meetingsByEntityId[entity.id] || []).length
+    const subsList = !isSubEntity ? (subEntitiesOf[entity.id] || []) : []
+    const subMeetingCount = subsList.reduce((acc, sub) => acc + (meetingsByEntityId[sub.id] || []).length, 0)
+    const totalCount = directMeetingCount + subMeetingCount
+
+    return (
+      <div className={`flex items-center gap-2 px-4 py-3 ${isSubEntity ? 'bg-gray-50/50 dark:bg-gray-800/30' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
+        <button
+          onClick={() => toggleCustomer(entity.id)}
+          className="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0"
+        >
+          {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+        </button>
+        {isOpen
+          ? <FolderOpen size={16} className="text-accent shrink-0" />
+          : <Folder size={16} className="text-accent shrink-0" />
+        }
+
+        {/* Type badge */}
+        <button
+          onClick={() => toggleEntityType(entity)}
+          className="shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded-full border transition-colors bg-accent/10 border-accent/30 text-accent hover:bg-accent/20"
+          title="Click to toggle type"
+        >
+          {typeBadge}
+        </button>
+
+        {/* Emoji */}
+        {editingEmojiFor === entity.id ? (
+          <input
+            ref={emojiInputRef}
+            className="input text-sm py-0.5 w-16 text-center shrink-0"
+            value={emojiVal}
+            onChange={(e) => setEmojiVal(e.target.value)}
+            onBlur={() => commitEmoji(entity)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitEmoji(entity)
+              if (e.key === 'Escape') setEditingEmojiFor(null)
+            }}
+            placeholder="😀"
+          />
+        ) : (
+          <button
+            onClick={() => startEditEmoji(entity)}
+            className="shrink-0 text-base leading-none hover:opacity-70 transition-opacity"
+            title="Click to edit emoji"
+          >
+            {entity.emoji || <span className="text-gray-300 dark:text-gray-600 text-xs">+</span>}
+          </button>
+        )}
+
+        {renamingId === entity.id ? (
+          <>
+            <input
+              ref={renameInputRef}
+              className="input text-sm py-0.5 flex-1 min-w-0"
+              value={renameVal}
+              onChange={(e) => setRenameVal(e.target.value)}
+              onBlur={() => commitRename(entity)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename(entity)
+                if (e.key === 'Escape') setRenamingId(null)
+              }}
+            />
+            <button onClick={() => commitRename(entity)} className="p-1 text-green-500 hover:text-green-600 shrink-0">
+              <Check size={13} />
+            </button>
+            <button onClick={() => setRenamingId(null)} className="p-1 text-gray-400 hover:text-gray-600 shrink-0">
+              <X size={13} />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              className="flex-1 text-left font-semibold text-gray-900 dark:text-white text-sm min-w-0 truncate"
+              onClick={() => toggleCustomer(entity.id)}
+            >
+              {entity.name}
+            </button>
+            <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+              {totalCount} meeting{totalCount !== 1 ? 's' : ''}
+            </span>
+            {!isSubEntity && (
+              <button
+                onClick={() => setMasterNotesCustomer(entity)}
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-accent hover:bg-accent-light dark:hover:bg-accent-light transition-colors shrink-0"
+                title={t('masterNotes')}
+              >
+                <BookMarked size={13} /> {t('masterNotes')}
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setEditingMeeting(null)
+                setPrefilledCustomer(entity.name)
+                setPrefilledCustomerId(entity.id)
+                setView('editRecurring')
+              }}
+              className="p-1.5 text-gray-400 hover:text-accent transition-colors shrink-0"
+              title="New recurring meeting"
+            >
+              <Plus size={14} />
+            </button>
+            {!isSubEntity && (
+              <button
+                onClick={() => { setAddingSubOf(entity.id); setNewSubName('') }}
+                className="p-1.5 text-gray-400 hover:text-purple-500 transition-colors shrink-0"
+                title="Add sub-entity"
+              >
+                <span className="text-xs font-bold">⊕</span>
+              </button>
+            )}
+            <button
+              onClick={() => startRename(entity)}
+              className="p-1.5 text-gray-400 hover:text-sky-500 transition-colors shrink-0"
+              title="Rename"
+            >
+              <Pencil size={13} />
+            </button>
+            <button
+              onClick={() => handleDeleteCustomer(entity)}
+              className="p-1.5 text-gray-300 dark:text-gray-600 hover:text-red-500 transition-colors shrink-0"
+              title="Delete"
+            >
+              <Trash2 size={13} />
+            </button>
+          </>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -259,7 +514,7 @@ export default function MeetingsPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Meetings</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             {customers.length > 0
-              ? `${customers.length} customer${customers.length !== 1 ? 's' : ''} · ${recurringMeetings.length} recurring meeting${recurringMeetings.length !== 1 ? 's' : ''}`
+              ? `${customers.length} entit${customers.length !== 1 ? 'ies' : 'y'} · ${recurringMeetings.length} recurring meeting${recurringMeetings.length !== 1 ? 's' : ''}`
               : 'Manage recurring meetings and write new notes'
             }
           </p>
@@ -280,11 +535,14 @@ export default function MeetingsPage() {
           <Building2 size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
           <p className="text-gray-500 dark:text-gray-400 font-medium">No customers or meetings yet</p>
           <p className="text-sm text-gray-400 dark:text-gray-500 mt-1 mb-4">
-            Create customers to organise your recurring meetings
+            Create customers or projects to organise your recurring meetings
           </p>
           <div className="flex gap-2 justify-center">
-            <button className="btn-secondary flex items-center gap-1.5" onClick={() => setAddingCustomer(true)}>
+            <button className="btn-secondary flex items-center gap-1.5" onClick={() => { setAddingCustomerType('customer'); setAddingCustomer(true) }}>
               <Plus size={14} /> New Customer
+            </button>
+            <button className="btn-secondary flex items-center gap-1.5" onClick={() => { setAddingCustomerType('project'); setAddingCustomer(true) }}>
+              <Plus size={14} /> New Project
             </button>
             <button className="btn-primary flex items-center gap-1.5" onClick={() => { setNoteConfig({}); setView('newNote') }}>
               <FileEdit size={14} /> Write a Note Anyway
@@ -295,15 +553,15 @@ export default function MeetingsPage() {
               <input
                 ref={newCustomerInputRef}
                 className="input flex-1 text-sm"
-                placeholder="Customer name"
+                placeholder={addingCustomerType === 'project' ? 'Project name' : 'Customer name'}
                 value={newCustomerName}
                 onChange={(e) => setNewCustomerName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAddCustomer()
+                  if (e.key === 'Enter') handleAddCustomer(addingCustomerType)
                   if (e.key === 'Escape') { setAddingCustomer(false); setNewCustomerName('') }
                 }}
               />
-              <button className="btn-primary text-sm" onClick={handleAddCustomer}>Add</button>
+              <button className="btn-primary text-sm" onClick={() => handleAddCustomer(addingCustomerType)}>Add</button>
               <button className="btn-ghost text-sm" onClick={() => { setAddingCustomer(false); setNewCustomerName('') }}>
                 <X size={14} />
               </button>
@@ -377,6 +635,23 @@ export default function MeetingsPage() {
                 </button>
               )}
             </div>
+
+            {/* Type filter pills */}
+            <div className="flex gap-1.5">
+              {(['all', 'customer', 'project']).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setTypeFilter(f)}
+                  className={`text-xs font-medium px-3 py-1 rounded-full border transition-colors capitalize ${
+                    typeFilter === f
+                      ? 'bg-accent text-white border-accent'
+                      : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-accent hover:text-accent'
+                  }`}
+                >
+                  {f === 'all' ? 'All' : f === 'customer' ? 'Customers' : 'Projects'}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Today */}
@@ -398,7 +673,7 @@ export default function MeetingsPage() {
                     noteCount={noteCountById[mtg.id] || 0}
                     draftNotes={draftNotesByMeetingId[mtg.id] || []}
                     showDrafts={filterDrafts}
-                    onEdit={() => { setEditingMeeting(mtg); setPrefilledCustomer(null); setView('editRecurring') }}
+                    onEdit={() => { setEditingMeeting(mtg); setPrefilledCustomer(null); setPrefilledCustomerId(null); setView('editRecurring') }}
                     onWriteNote={() => { setNoteConfig({ recurringMeetingId: mtg.id }); setView('newNote') }}
                     onEditDraft={(draft) => { setNoteConfig({ existingNote: draft }); setView('newNote') }}
                   />
@@ -407,167 +682,103 @@ export default function MeetingsPage() {
             </div>
           )}
 
-          {/* Customer accordions */}
+          {/* Entity accordions */}
           <div className="space-y-2">
-            {customerGroups.map(({ customer, meetings }) => (
-              <div key={customer.id} className="card overflow-hidden">
-                {/* Customer header */}
-                <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 dark:bg-gray-800/50">
-                  <button
-                    onClick={() => toggleCustomer(customer.id)}
-                    className="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0"
-                  >
-                    {openCustomers[customer.id] ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                  </button>
-                  {openCustomers[customer.id]
-                    ? <FolderOpen size={16} className="text-accent shrink-0" />
-                    : <Folder size={16} className="text-accent shrink-0" />
-                  }
+            {topLevelEntities.map((entity) => {
+              const subs = subEntitiesOf[entity.id] || []
+              const isOpen = openCustomers[entity.id]
+              return (
+                <div key={entity.id} className="card overflow-hidden">
+                  {renderEntityHeader(entity, false)}
 
-                  {renamingId === customer.id ? (
-                    <>
-                      <input
-                        ref={renameInputRef}
-                        className="input text-sm py-0.5 flex-1 min-w-0"
-                        value={renameVal}
-                        onChange={(e) => setRenameVal(e.target.value)}
-                        onBlur={() => commitRename(customer)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') commitRename(customer)
-                          if (e.key === 'Escape') setRenamingId(null)
-                        }}
-                      />
-                      <button onClick={() => commitRename(customer)} className="p-1 text-green-500 hover:text-green-600 shrink-0">
-                        <Check size={13} />
-                      </button>
-                      <button onClick={() => setRenamingId(null)} className="p-1 text-gray-400 hover:text-gray-600 shrink-0">
-                        <X size={13} />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        className="flex-1 text-left font-semibold text-gray-900 dark:text-white text-sm min-w-0 truncate"
-                        onClick={() => toggleCustomer(customer.id)}
-                      >
-                        {customer.name}
-                      </button>
-                      <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
-                        {meetings.length} meeting{meetings.length !== 1 ? 's' : ''}
-                      </span>
-                      <button
-                        onClick={() => setMasterNotesCustomer(customer)}
-                        className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-accent hover:bg-accent-light dark:hover:bg-accent-light transition-colors shrink-0"
-                        title={t('masterNotes')}
-                      >
-                        <BookMarked size={13} /> {t('masterNotes')}
-                      </button>
-                      <button
-                        onClick={() => { setEditingMeeting(null); setPrefilledCustomer(customer.name); setView('editRecurring') }}
-                        className="p-1.5 text-gray-400 hover:text-accent transition-colors shrink-0"
-                        title="New recurring meeting"
-                      >
-                        <Plus size={14} />
-                      </button>
-                      <button
-                        onClick={() => startRename(customer)}
-                        className="p-1.5 text-gray-400 hover:text-sky-500 transition-colors shrink-0"
-                        title="Rename customer"
-                      >
-                        <Pencil size={13} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteCustomer(customer)}
-                        className="p-1.5 text-gray-300 dark:text-gray-600 hover:text-red-500 transition-colors shrink-0"
-                        title="Delete customer"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </>
+                  {isOpen && (
+                    <div className="p-4 space-y-4">
+                      {/* Sub-entities */}
+                      {subs.length > 0 && (
+                        <div className="space-y-2">
+                          {subs.map((sub) => (
+                            <div key={sub.id} className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden ml-4 border-l-2 border-l-accent/30">
+                              {renderEntityHeader(sub, true)}
+                              {openCustomers[sub.id] && (
+                                <div className="p-4">
+                                  {renderMeetingsGrid(sub.id, sub.name)}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Add sub-entity inline form */}
+                      {addingSubOf === entity.id && (
+                        <div className="flex gap-2 items-center ml-4 p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                          <input
+                            ref={newSubInputRef}
+                            className="input flex-1 text-sm"
+                            placeholder={`New sub-${entity.type || 'customer'} name…`}
+                            value={newSubName}
+                            onChange={(e) => setNewSubName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleAddSub(entity.id)
+                              if (e.key === 'Escape') { setAddingSubOf(null); setNewSubName('') }
+                            }}
+                          />
+                          <button className="btn-primary text-sm py-1.5" onClick={() => handleAddSub(entity.id)}>Add</button>
+                          <button
+                            className="btn-ghost text-sm py-1.5"
+                            onClick={() => { setAddingSubOf(null); setNewSubName('') }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Direct meetings */}
+                      {renderMeetingsGrid(entity.id, entity.name)}
+                    </div>
                   )}
                 </div>
+              )
+            })}
 
-                {/* Meetings grid */}
-                {openCustomers[customer.id] && (
-                  <div className="p-4">
-                    {meetings.length === 0 ? (
-                      <div className="text-center py-6">
-                        <p className="text-sm text-gray-400 dark:text-gray-500 mb-3">
-                          No recurring meetings yet
-                        </p>
-                        <button
-                          className="btn-secondary text-sm flex items-center gap-1.5 mx-auto"
-                          onClick={() => { setEditingMeeting(null); setPrefilledCustomer(customer.name); setView('editRecurring') }}
-                        >
-                          <Plus size={14} /> Add Recurring Meeting
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {meetings.map((mtg) => (
-                          <RecurringMeetingCard
-                            key={mtg.id}
-                            meeting={mtg}
-                            isToday={isScheduledToday(mtg.schedule)}
-                            noteCount={noteCountById[mtg.id] || 0}
-                            draftNotes={draftNotesByMeetingId[mtg.id] || []}
-                            showDrafts={filterDrafts}
-                            onEdit={() => { setEditingMeeting(mtg); setPrefilledCustomer(null); setView('editRecurring') }}
-                            onWriteNote={() => { setNoteConfig({ recurringMeetingId: mtg.id }); setView('newNote') }}
-                            onEditDraft={(draft) => { setNoteConfig({ existingNote: draft }); setView('newNote') }}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                      <button
-                        onClick={() => { setNoteConfig({ prefilledCustomer: customer.name }); setView('newNote') }}
-                        className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-accent transition-colors"
-                      >
-                        <FileEdit size={13} /> + {t('miscMeetings')}
-                      </button>
-                    </div>
-                  </div>
-                )}
+            {/* Misc Meetings */}
+            <div className="card overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 dark:bg-gray-800/50">
+                <button
+                  onClick={() => toggleCustomer('__misc__')}
+                  className="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0"
+                >
+                  {openCustomers['__misc__'] ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                </button>
+                {openCustomers['__misc__']
+                  ? <FolderOpen size={16} className="text-gray-400 shrink-0" />
+                  : <Folder size={16} className="text-gray-400 shrink-0" />
+                }
+                <button
+                  className="flex-1 text-left font-semibold text-gray-500 dark:text-gray-400 text-sm"
+                  onClick={() => toggleCustomer('__misc__')}
+                >
+                  Misc Meetings
+                </button>
+                <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                  {miscMeetings.length} meeting{miscMeetings.length !== 1 ? 's' : ''}
+                </span>
+                <button
+                  onClick={() => { setEditingMeeting(null); setPrefilledCustomer(null); setPrefilledCustomerId(null); setView('editRecurring') }}
+                  className="p-1.5 text-gray-400 hover:text-accent transition-colors shrink-0"
+                  title="New misc meeting"
+                >
+                  <Plus size={14} />
+                </button>
               </div>
-            ))}
 
-            {/* Unassigned meetings */}
-            {unassigned.length > 0 && (
-              <div className="card overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 dark:bg-gray-800/50">
-                  <button
-                    onClick={() => toggleCustomer('__unassigned__')}
-                    className="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0"
-                  >
-                    {openCustomers['__unassigned__'] ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                  </button>
-                  {openCustomers['__unassigned__']
-                    ? <FolderOpen size={16} className="text-gray-400 shrink-0" />
-                    : <Folder size={16} className="text-gray-400 shrink-0" />
-                  }
-                  <button
-                    className="flex-1 text-left font-semibold text-gray-500 dark:text-gray-400 text-sm"
-                    onClick={() => toggleCustomer('__unassigned__')}
-                  >
-                    Unassigned
-                  </button>
-                  <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
-                    {unassigned.length} meeting{unassigned.length !== 1 ? 's' : ''}
-                  </span>
-                  <button
-                    onClick={() => { setEditingMeeting(null); setPrefilledCustomer(null); setView('editRecurring') }}
-                    className="p-1.5 text-gray-400 hover:text-accent transition-colors shrink-0"
-                    title="New recurring meeting"
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-
-                {openCustomers['__unassigned__'] && (
-                  <div className="p-4">
+              {openCustomers['__misc__'] && (
+                <div className="p-4">
+                  {miscMeetings.length === 0 ? (
+                    <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">No misc meetings</p>
+                  ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {unassigned.map((mtg) => (
+                      {miscMeetings.map((mtg) => (
                         <RecurringMeetingCard
                           key={mtg.id}
                           meeting={mtg}
@@ -575,16 +786,16 @@ export default function MeetingsPage() {
                           noteCount={noteCountById[mtg.id] || 0}
                           draftNotes={draftNotesByMeetingId[mtg.id] || []}
                           showDrafts={filterDrafts}
-                          onEdit={() => { setEditingMeeting(mtg); setPrefilledCustomer(null); setView('editRecurring') }}
+                          onEdit={() => { setEditingMeeting(mtg); setPrefilledCustomer(null); setPrefilledCustomerId(null); setView('editRecurring') }}
                           onWriteNote={() => { setNoteConfig({ recurringMeetingId: mtg.id }); setView('newNote') }}
                           onEditDraft={(draft) => { setNoteConfig({ existingNote: draft }); setView('newNote') }}
                         />
                       ))}
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* No search results */}
@@ -597,7 +808,7 @@ export default function MeetingsPage() {
             </div>
           )}
 
-          {/* Add customer */}
+          {/* Add customer / project */}
           <div className="mt-4">
             {addingCustomer ? (
               <div className="card p-3 flex gap-2 items-center">
@@ -605,15 +816,15 @@ export default function MeetingsPage() {
                 <input
                   ref={newCustomerInputRef}
                   className="input flex-1 text-sm"
-                  placeholder="New customer name…"
+                  placeholder={addingCustomerType === 'project' ? 'New project name…' : 'New customer name…'}
                   value={newCustomerName}
                   onChange={(e) => setNewCustomerName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddCustomer()
+                    if (e.key === 'Enter') handleAddCustomer(addingCustomerType)
                     if (e.key === 'Escape') { setAddingCustomer(false); setNewCustomerName('') }
                   }}
                 />
-                <button className="btn-primary text-sm py-1.5" onClick={handleAddCustomer}>Add</button>
+                <button className="btn-primary text-sm py-1.5" onClick={() => handleAddCustomer(addingCustomerType)}>Add</button>
                 <button
                   className="btn-ghost text-sm py-1.5"
                   onClick={() => { setAddingCustomer(false); setNewCustomerName('') }}
@@ -622,12 +833,20 @@ export default function MeetingsPage() {
                 </button>
               </div>
             ) : (
-              <button
-                onClick={() => setAddingCustomer(true)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-400 dark:text-gray-500 hover:border-accent hover:text-accent transition-colors"
-              >
-                <Plus size={15} /> New Customer
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setAddingCustomerType('customer'); setAddingCustomer(true) }}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-400 dark:text-gray-500 hover:border-accent hover:text-accent transition-colors"
+                >
+                  <Plus size={15} /> New Customer
+                </button>
+                <button
+                  onClick={() => { setAddingCustomerType('project'); setAddingCustomer(true) }}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-400 dark:text-gray-500 hover:border-accent hover:text-accent transition-colors"
+                >
+                  <Plus size={15} /> New Project
+                </button>
+              </div>
             )}
           </div>
         </>

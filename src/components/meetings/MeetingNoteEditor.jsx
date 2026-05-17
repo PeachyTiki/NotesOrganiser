@@ -783,7 +783,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
                         {lastSessionPendingActions.map((item) => (
                           <div key={item.id} className="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400">
                             <span className="text-amber-500 mt-0.5 shrink-0">☐</span>
-                            <span>{item.task}</span>
+                            <span>{item.text}</span>
                             {item.assignee && <span className="text-gray-400 shrink-0">({item.assignee})</span>}
                           </div>
                         ))}
