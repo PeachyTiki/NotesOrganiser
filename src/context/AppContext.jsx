@@ -37,16 +37,33 @@ const defaultState = {
 
 // Normalize data so old versions load without crashing
 function migrateState(raw) {
+  const migratedCustomers = (raw.customers || []).map((c) => ({
+    type: 'customer',
+    emoji: '',
+    parentId: null,
+    ...c,
+  }))
+
+  // Build a name->id map for legacy meeting migration
+  const customerIdByName = {}
+  migratedCustomers.forEach((c) => { customerIdByName[c.name.toLowerCase()] = c.id })
+
   return {
     ...raw,
-    customers: raw.customers || [],
+    customers: migratedCustomers,
     sectionPresets: raw.sectionPresets || [],
     syncConfigs: raw.syncConfigs || [],
     syncFileMap: raw.syncFileMap || {},
-    recurringMeetings: (raw.recurringMeetings || []).map((m) => ({
-      schedule: { type: 'none' },  // default first so stored value wins
-      ...m,
-    })),
+    recurringMeetings: (raw.recurringMeetings || []).map((m) => {
+      const customerId = m.customerId == null
+        ? (customerIdByName[m.customer?.toLowerCase()] ?? '')
+        : m.customerId
+      return {
+        schedule: { type: 'none' },  // default first so stored value wins
+        ...m,
+        customerId,
+      }
+    }),
     meetingNotes: (raw.meetingNotes || []).map((n) => {
       const migrateSection = (s) =>
         s.type === 'actionItems'

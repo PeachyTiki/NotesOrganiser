@@ -32,6 +32,7 @@ function emptyMeeting(settings) {
     id: uuid(),
     name: '',
     customer: '',
+    customerId: '',
     eventType: '',
     team: '',
     schedule: { type: 'none' },
@@ -73,7 +74,6 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, onC
 
   const handleSave = () => {
     if (!form.name.trim()) { alert('Please enter a meeting name.'); return }
-    if (!form.customer.trim()) { alert('Please enter a customer name.'); return }
     saveRecurringMeeting({ ...form, updatedAt: new Date().toISOString() })
     onClose()
   }
@@ -101,17 +101,36 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, onC
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Customer *</label>
-              <input
+              <label className="label">Customer / Project</label>
+              <select
                 className="input"
-                value={form.customer}
-                onChange={(e) => set('customer', e.target.value)}
-                placeholder="e.g. Acme Corp"
-                list="customer-names-list"
-              />
-              <datalist id="customer-names-list">
-                {(customers || []).map((c) => <option key={c.id} value={c.name} />)}
-              </datalist>
+                value={form.customerId || ''}
+                onChange={(e) => {
+                  const id = e.target.value
+                  const entity = (customers || []).find((c) => c.id === id)
+                  setForm((f) => ({ ...f, customerId: id, customer: entity ? entity.name : '' }))
+                }}
+              >
+                <option value="">— None (Misc Meeting) —</option>
+                {(customers || [])
+                  .filter((c) => !c.parentId)
+                  .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                  .map((entity) => {
+                    const subs = (customers || [])
+                      .filter((c) => c.parentId === entity.id)
+                      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                    return [
+                      <option key={entity.id} value={entity.id}>
+                        {entity.emoji ? `${entity.emoji} ` : ''}{entity.name}
+                      </option>,
+                      ...subs.map((sub) => (
+                        <option key={sub.id} value={sub.id}>
+                          {'  ↳ '}{sub.emoji ? `${sub.emoji} ` : ''}{sub.name}
+                        </option>
+                      )),
+                    ]
+                  })}
+              </select>
             </div>
             <div>
               <label className="label">Event Type</label>
