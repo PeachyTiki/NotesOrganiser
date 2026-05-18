@@ -1,19 +1,43 @@
 # Notes Organiser
 
-A desktop meeting notes app built with Electron, React, and Tailwind CSS. Organises notes by customer and recurring meeting, exports to PDF/Word/PNG, and generates AI-ready context prompts for LLM summarisation.
+A desktop meeting notes app — organise notes by customer and recurring meeting, export to PDF/Word, sync to SharePoint or any cloud folder, and generate AI-ready prompts from your transcripts.
+
+---
+
+## Install
+
+### Windows
+
+1. Go to **[Releases](https://github.com/PeachyTiki/NotesOrganiser/releases/latest)**
+2. Download **`Notes Organiser Setup 1.0.0.exe`**
+3. Run the installer and follow the prompts
+4. Launch **Notes Organiser** from the Start Menu or Desktop shortcut
+
+### Mac
+
+1. Go to **[Releases](https://github.com/PeachyTiki/NotesOrganiser/releases/latest)**
+2. Download **`Notes Organiser-1.0.0-universal.dmg`**
+3. Open the DMG, drag **Notes Organiser** into your **Applications** folder
+4. **First launch only:** right-click the app → **Open** → click **Open** in the dialog
+   *(macOS blocks unsigned apps by default — you only need to do this once)*
+5. After the first launch, it opens normally like any other app
+
+---
 
 ## Features
 
-- **Recurring meetings** — Link notes to a jour fixe or recurring meeting series. Open topics, action items, and resources carry forward automatically to each new session.
-- **Rich content sections** — Text, Notes (AI transcript), Topics, Action Items, Decisions, Risks & Blockers, Resources & Links, Bar/Pie/Line charts, and Gantt timelines.
-- **Export** — PDF (real text, not image), Word (.docx), and PNG. Bulk ZIP export from the Library at customer, meeting, or full-library level.
-- **AI integration** — Download a structured JSON prompt for any section or the full meeting, feed it to ChatGPT / Claude / Gemini with your transcript, and import the response back in one click. Output language follows the per-note language setting.
-- **AI context export** — Export the full history of a customer, recurring meeting, or single note as a JSON prompt for an LLM to generate a status report, list open topics, and answer follow-up questions.
-- **Library** — Search across titles, customers, content, and participants. Filter by date range. Inline action item status toggling without opening the editor.
-- **Templates** — Custom banner colour, logo, font, and colour palette per export theme.
-- **Section layout presets** — Save a section arrangement as a named preset and apply it to any new note.
+- **Recurring meetings** — Link notes to a recurring series. Open topics, actions, and resources carry forward to each new session automatically.
+- **Customers & Projects** — Organise meetings under customers or projects (with sub-entities one level deep). Filter by type, assign emojis.
+- **Misc Meetings** — A catch-all folder for one-off meetings not tied to any customer or project.
+- **Rich sections** — Text, Notes (AI transcript), Topics, Tasks, Decisions, Risks, Resources, Bar/Pie/Line charts, Gantt timelines.
+- **Export** — PDF (real text), Word (.docx), PNG. Bulk ZIP from the Library.
+- **Folder Sync** — Automatically export PDFs to any local or cloud-synced folder (OneDrive, SharePoint, Dropbox) after every save.
+- **AI integration** — Download a structured JSON prompt for any note or section, paste your transcript, and import the AI response back in one click.
+- **Templates** — Custom banner, logo, font, and colour palette per export theme.
 - **Dark mode** — Full dark mode with configurable accent colour.
-- **Local-only** — All data is stored in `localStorage`. Nothing leaves your machine.
+- **Local-only** — All data lives in `localStorage`. Nothing leaves your machine.
+
+---
 
 ## Tech Stack
 
@@ -26,46 +50,34 @@ A desktop meeting notes app built with Electron, React, and Tailwind CSS. Organi
 | PDF export | jsPDF |
 | Word export | docx |
 | ZIP export | JSZip |
-| Canvas capture | html2canvas |
 | Icons | Lucide React |
 
-## Getting Started
+---
+
+## Build from Source
 
 ```bash
-# Install dependencies
 npm install
 
-# Run in development (browser)
+# Development (browser only)
 npm run dev
 
-# Run as Electron app
-npx electron .
-
-# Build installer (Windows)
+# Build installer
 npm run electron:build
+# → release/Notes Organiser Setup 1.0.0.exe  (Windows)
+# → release/Notes Organiser-1.0.0-universal.dmg  (Mac — requires macOS runner)
 ```
 
-The installer will be output to `release/Notes Organiser Setup 1.0.0.exe`.
+Releases are built automatically via GitHub Actions on every version tag push. The workflow builds Windows on `windows-latest` and Mac on `macos-latest` and attaches both to a GitHub Release.
 
-## Project Structure
-
-```
-src/
-  components/
-    library/        # Library page (browse, search, bulk export)
-    meetings/       # Editor, preview, section components
-      sections/     # Individual section types
-    templates/      # Template editor
-  context/          # AppContext — global state + localStorage persistence
-  utils/            # Export (PDF, Word, ZIP), AI prompt builders, i18n
-electron/           # Main process + preload
-public/             # App icons
-```
+---
 
 ## Data & Backup
 
-All notes are stored in the browser's `localStorage` under the key `notes_organiser_v1`. Use **Settings → Backup** to export a full JSON backup and **Restore** to import it. The backup includes all notes, templates, recurring meetings, and settings.
+All data is stored in `localStorage` under the key `notes_organiser_v1`. Use **Settings → Backup** to export a full JSON snapshot and **Restore** to import it. Backups include all notes, templates, recurring meetings, and settings.
+
+---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT
