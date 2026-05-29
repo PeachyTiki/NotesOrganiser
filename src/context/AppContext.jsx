@@ -14,11 +14,13 @@ const defaultState = {
   templates: [],
   recurringMeetings: [],
   meetingNotes: [],
+  standaloneTasks: [],
   sectionPresets: [],
   syncConfigs: [],
   syncFileMap: {},
   darkMode: false,
   activeSection: 'meetings',
+  pendingOpenNoteId: null,
   settings: {
     yourName: '',
     yourFirm: '',
@@ -32,6 +34,7 @@ const defaultState = {
     internalNotesEnabled: false,
     tasksEnabled: false,
     aiPromptMode: 'download',
+    defaultTemplateId: '',
   },
 }
 
@@ -41,6 +44,7 @@ function migrateState(raw) {
     type: 'customer',
     emoji: '',
     parentId: null,
+    customerSettings: {},
     ...c,
   }))
 
@@ -51,6 +55,7 @@ function migrateState(raw) {
   return {
     ...raw,
     customers: migratedCustomers,
+    standaloneTasks: raw.standaloneTasks || [],
     sectionPresets: raw.sectionPresets || [],
     syncConfigs: raw.syncConfigs || [],
     syncFileMap: raw.syncFileMap || {},
@@ -235,7 +240,16 @@ export function AppProvider({ children }) {
     })
   }
   const deleteMeetingNote = (id) =>
-    setState((s) => ({ ...s, meetingNotes: s.meetingNotes.filter((n) => n.id !== id) }))
+    setState((s) => {
+      const cleanedFileMap = Object.fromEntries(
+        Object.entries(s.syncFileMap || {}).filter(([key]) => !key.startsWith(`${id}|`))
+      )
+      return {
+        ...s,
+        meetingNotes: s.meetingNotes.filter((n) => n.id !== id),
+        syncFileMap: cleanedFileMap,
+      }
+    })
 
   const saveSyncConfig = (cfg) =>
     setState((s) => {
@@ -253,6 +267,20 @@ export function AppProvider({ children }) {
 
   const updateSyncFileMap = (updates) =>
     setState((s) => ({ ...s, syncFileMap: { ...(s.syncFileMap || {}), ...updates } }))
+
+  const saveStandaloneTask = (task) =>
+    setState((s) => {
+      const exists = (s.standaloneTasks || []).find((t) => t.id === task.id)
+      return {
+        ...s,
+        standaloneTasks: exists
+          ? s.standaloneTasks.map((t) => (t.id === task.id ? task : t))
+          : [...(s.standaloneTasks || []), task],
+      }
+    })
+
+  const deleteStandaloneTask = (id) =>
+    setState((s) => ({ ...s, standaloneTasks: (s.standaloneTasks || []).filter((t) => t.id !== id) }))
 
   // Wipe everything and reset to defaults
   const clearAllData = () => {
@@ -286,6 +314,7 @@ export function AppProvider({ children }) {
     templates: state.templates,
     recurringMeetings: state.recurringMeetings,
     meetingNotes: state.meetingNotes,
+    standaloneTasks: state.standaloneTasks || [],
     sectionPresets: state.sectionPresets,
     settings: state.settings,
     darkMode: state.darkMode,
@@ -351,6 +380,8 @@ export function AppProvider({ children }) {
         createBackup,
         saveSectionPreset,
         deleteSectionPreset,
+        saveStandaloneTask,
+        deleteStandaloneTask,
         saveSyncConfig,
         deleteSyncConfig,
         updateSyncFileMap,

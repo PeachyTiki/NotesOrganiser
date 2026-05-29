@@ -1,13 +1,15 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Plus, FileEdit, ChevronRight, ChevronDown, Search, Sparkles,
-  Folder, FolderOpen, Pencil, Trash2, Check, X, Building2, ArrowUpDown, BookMarked,
+  Folder, FolderOpen, Pencil, Trash2, Check, X, Building2, ArrowUpDown, BookMarked, Settings,
 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
 import RecurringMeetingEditor, { scheduleLabel } from './RecurringMeetingEditor'
 import MeetingNoteEditor from './MeetingNoteEditor'
 import MasterNotesModal from '../MasterNotesModal'
+import EntitySettingsModal from './EntitySettingsModal'
+
 
 function isScheduledToday(schedule) {
   if (!schedule || !schedule.type || schedule.type === 'none') return false
@@ -46,6 +48,7 @@ export default function MeetingsPage() {
   const {
     recurringMeetings, meetingNotes, customers,
     saveCustomer, deleteCustomer, saveRecurringMeeting, t,
+    pendingOpenNoteId, update,
   } = useApp()
 
   const [view, setView] = useState('list')
@@ -70,11 +73,22 @@ export default function MeetingsPage() {
   const [newSubName, setNewSubName] = useState('')
   const [editingEmojiFor, setEditingEmojiFor] = useState(null)
   const [emojiVal, setEmojiVal] = useState('')
+  const [entitySettingsFor, setEntitySettingsFor] = useState(null)
 
   const newCustomerInputRef = useRef(null)
   const renameInputRef = useRef(null)
   const newSubInputRef = useRef(null)
   const emojiInputRef = useRef(null)
+
+  useEffect(() => {
+    if (!pendingOpenNoteId) return
+    const note = meetingNotes.find((n) => n.id === pendingOpenNoteId)
+    update({ pendingOpenNoteId: null })
+    if (note) {
+      setNoteConfig({ existingNote: note })
+      setView('newNote')
+    }
+  }, [pendingOpenNoteId])
 
   useEffect(() => {
     if (addingCustomer && newCustomerInputRef.current) newCustomerInputRef.current.focus()
@@ -494,6 +508,13 @@ export default function MeetingsPage() {
               <Pencil size={13} />
             </button>
             <button
+              onClick={() => setEntitySettingsFor(entity)}
+              className="p-1.5 text-gray-400 hover:text-accent transition-colors shrink-0"
+              title="Entity defaults (template, language, AI tone…)"
+            >
+              <Settings size={13} />
+            </button>
+            <button
               onClick={() => handleDeleteCustomer(entity)}
               className="p-1.5 text-gray-300 dark:text-gray-600 hover:text-red-500 transition-colors shrink-0"
               title="Delete"
@@ -856,6 +877,12 @@ export default function MeetingsPage() {
           customer={masterNotesCustomer}
           customerNotes={notesByCustomer[masterNotesCustomer.name] || []}
           onClose={() => setMasterNotesCustomer(null)}
+        />
+      )}
+      {entitySettingsFor && (
+        <EntitySettingsModal
+          entity={entitySettingsFor}
+          onClose={() => setEntitySettingsFor(null)}
         />
       )}
     </div>
