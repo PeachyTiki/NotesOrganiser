@@ -1,27 +1,34 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, AlignJustify, BookOpen } from 'lucide-react'
+import { ChevronLeft, ChevronRight, AlignJustify, BookOpen, ZoomIn, ZoomOut } from 'lucide-react'
 import NoteExportCanvas from './NoteExportCanvas'
 
 // A4 at 96 dpi: 794 × 1122 px
 const A4_W = 794
 const A4_H = 1122
+const ZOOM_STEP = 0.15
+const ZOOM_MIN = 0.2
+const ZOOM_MAX = 3.0
 
-export default function A4Preview({ note, template, t, isInternal = false }) {
+export default function A4Preview({
+  note, template, t, isInternal = false,
+  hasPrevNote = false, hasNextNote = false,
+  onPrevNote, onNextNote, noteNavLabel = '',
+}) {
   const containerRef = useRef(null)
   const innerRef = useRef(null)
-  const [scale, setScale] = useState(1)
+  const [containerW, setContainerW] = useState(0)
+  const [zoomFactor, setZoomFactor] = useState(1)
   const [innerH, setInnerH] = useState(0)
   const [mode, setMode] = useState('scroll') // 'scroll' | 'flip'
   const [currentPage, setCurrentPage] = useState(1)
   const [jumpVal, setJumpVal] = useState('')
   const [jumpEditing, setJumpEditing] = useState(false)
 
-  // Track container width → scale
+  // Track container width → auto scale
   useEffect(() => {
     if (!containerRef.current) return
     const ro = new ResizeObserver((entries) => {
-      const w = entries[0].contentRect.width
-      setScale(w / A4_W)
+      setContainerW(entries[0].contentRect.width)
     })
     ro.observe(containerRef.current)
     return () => ro.disconnect()
@@ -36,6 +43,10 @@ export default function A4Preview({ note, template, t, isInternal = false }) {
     ro.observe(innerRef.current)
     return () => ro.disconnect()
   }, [])
+
+  const autoScale = containerW > 0 ? containerW / A4_W : 1
+  const scale = autoScale * zoomFactor
+  const docVisualW = A4_W * scale
 
   const totalPages = Math.max(1, Math.ceil(innerH / A4_H))
   const safePage = Math.min(Math.max(1, currentPage), totalPages)
@@ -72,13 +83,46 @@ export default function A4Preview({ note, template, t, isInternal = false }) {
     ? Array.from({ length: totalPages - 1 }, (_, i) => (i + 1) * A4_H * scale)
     : []
 
+  // Center document when smaller than container; clip left when zoomed in
+  const leftOffset = containerW > 0 && docVisualW < containerW
+    ? (containerW - docVisualW) / 2
+    : 0
+
   // Inner transform: for flip, translate to show the current page slice
   const innerTransform = mode === 'flip'
     ? `scale(${scale}) translateY(${-(safePage - 1) * A4_H}px)`
     : `scale(${scale})`
 
+  const zoomPct = Math.round(zoomFactor * 100)
+  const showNav = hasPrevNote || hasNextNote || noteNavLabel
+
   return (
     <div>
+      {/* Meeting navigation bar */}
+      {showNav && (
+        <div className="flex items-center gap-1 mb-1.5 px-1">
+          <button
+            onClick={onPrevNote}
+            disabled={!hasPrevNote}
+            className="p-1 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 transition-colors shrink-0"
+            title="Older meeting"
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <span className="flex-1 text-center text-xs text-gray-500 dark:text-gray-400 truncate select-none">
+            {noteNavLabel}
+          </span>
+          <button
+            onClick={onNextNote}
+            disabled={!hasNextNote}
+            className="p-1 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 transition-colors shrink-0"
+            title="Newer meeting"
+          >
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Controls bar */}
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex-1 min-w-0">
@@ -87,6 +131,33 @@ export default function A4Preview({ note, template, t, isInternal = false }) {
             <span className="ml-2 normal-case font-normal text-gray-400">· {totalPages} pages</span>
           )}
         </p>
+
+        {/* Zoom controls */}
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button
+            onClick={() => setZoomFactor((f) => Math.max(ZOOM_MIN, parseFloat((f - ZOOM_STEP).toFixed(2))))}
+            disabled={zoomFactor <= ZOOM_MIN}
+            className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-30 transition-colors"
+            title="Zoom out"
+          >
+            <ZoomOut size={13} />
+          </button>
+          <button
+            onClick={() => setZoomFactor(1)}
+            className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 w-9 text-center px-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            title="Reset zoom to 100%"
+          >
+            {zoomPct}%
+          </button>
+          <button
+            onClick={() => setZoomFactor((f) => Math.min(ZOOM_MAX, parseFloat((f + ZOOM_STEP).toFixed(2))))}
+            disabled={zoomFactor >= ZOOM_MAX}
+            className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-30 transition-colors"
+            title="Zoom in"
+          >
+            <ZoomIn size={13} />
+          </button>
+        </div>
 
         {/* Mode toggle */}
         <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5 shrink-0">
@@ -156,10 +227,11 @@ export default function A4Preview({ note, template, t, isInternal = false }) {
       {/* A4 preview frame */}
       <div
         ref={containerRef}
-        className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 overflow-hidden relative"
+        className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 relative"
         style={{
           height: outerDisplayH,
           overflowY: mode === 'scroll' ? 'auto' : 'hidden',
+          overflowX: docVisualW > containerW + 2 ? 'auto' : 'hidden',
           maxHeight: mode === 'scroll' ? '75vh' : undefined,
         }}
       >
@@ -167,8 +239,8 @@ export default function A4Preview({ note, template, t, isInternal = false }) {
         {pageBreaks.map((breakY, i) => (
           <div
             key={i}
-            className="absolute left-0 right-0 z-10 pointer-events-none"
-            style={{ top: breakY - 8, height: 16 }}
+            className="absolute z-10 pointer-events-none"
+            style={{ top: breakY - 8, height: 16, left: leftOffset, width: docVisualW }}
           >
             <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
               <span className="text-xs text-gray-400 dark:text-gray-500 font-medium select-none">
@@ -187,7 +259,7 @@ export default function A4Preview({ note, template, t, isInternal = false }) {
             width: A4_W,
             position: 'absolute',
             top: 0,
-            left: 0,
+            left: leftOffset,
             backgroundColor: '#ffffff',
           }}
         >

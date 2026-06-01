@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { ArrowLeft, Save, Download, RefreshCw, Globe, Plus, Trash2, Clock, ChevronRight, ChevronDown, CheckSquare, MessageSquare, LayoutTemplate, X, Lock, Brain } from 'lucide-react'
+import { ArrowLeft, Save, Download, RefreshCw, Globe, Plus, Trash2, Clock, ChevronLeft, ChevronRight, ChevronDown, CheckSquare, MessageSquare, LayoutTemplate, X, Lock, Brain } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import html2canvas from 'html2canvas'
 import { useApp } from '../../context/AppContext'
@@ -89,19 +89,46 @@ function processTopicStatuses(sections) {
   })
 }
 
-function emptyNote(recurringMeeting, settings) {
+function resolveEntityDefaults(recurringMeeting, customers) {
+  if (!recurringMeeting?.customerId) return {}
+  const findById = (id) => (customers || []).find((c) => c.id === id)
+  let entity = findById(recurringMeeting.customerId)
+  while (entity) {
+    const cs = entity.customerSettings || {}
+    const result = {}
+    if (cs.defaultTemplateId) result.templateId = cs.defaultTemplateId
+    if (cs.defaultLanguage) result.language = cs.defaultLanguage
+    if (cs.defaultExportFormat) result.exportFormat = cs.defaultExportFormat
+    if (cs.defaultEventType) result.eventType = cs.defaultEventType
+    if (cs.defaultAiFormality || cs.defaultAiConciseness || cs.defaultAiInstructions) {
+      result.aiTone = {
+        formality: cs.defaultAiFormality || '',
+        conciseness: cs.defaultAiConciseness || '',
+        customInstructions: cs.defaultAiInstructions || '',
+      }
+    }
+    if (Object.keys(result).length > 0) return result
+    entity = entity.parentId ? findById(entity.parentId) : null
+  }
+  return {}
+}
+
+function emptyNote(recurringMeeting, settings, customers) {
   const defaultModes = recurringMeeting?.defaultModes || { standard: true, internal: false }
+  const entityDefaults = resolveEntityDefaults(recurringMeeting, customers)
+  const templateId = recurringMeeting?.templateId || entityDefaults.templateId || settings?.defaultTemplateId || ''
+  const language = recurringMeeting?.language || entityDefaults.language || settings?.language || getSystemLanguage()
   return {
     id: uuid(),
     recurringMeetingId: recurringMeeting?.id || '',
     title: recurringMeeting?.name || '',
     customer: recurringMeeting?.customer || '',
-    eventType: recurringMeeting?.eventType || '',
+    eventType: recurringMeeting?.eventType || entityDefaults.eventType || '',
     team: recurringMeeting?.team || '',
     date: new Date().toISOString().slice(0, 10),
-    language: recurringMeeting?.language || getSystemLanguage(),
+    language,
     participants: buildParticipants(recurringMeeting, settings),
-    templateId: recurringMeeting?.templateId || '',
+    templateId,
     sections: [{ id: uuid(), type: 'notes', label: '', content: '' }, { id: uuid(), type: 'tasks', label: '', items: [] }],
     modes: defaultModes,
     internalSections: [{ id: uuid(), type: 'notes', label: '', content: '' }, { id: uuid(), type: 'tasks', label: '', items: [] }],
@@ -113,13 +140,13 @@ function emptyNote(recurringMeeting, settings) {
 
 
 export default function MeetingNoteEditor({ recurringMeetingId, existingNote, prefilledCustomer, onClose }) {
-  const { recurringMeetings, templates, saveMeetingNote, meetingNotes, settings, update, t, sectionPresets, saveSectionPreset, deleteSectionPreset, syncConfigs, syncFileMap, updateSyncFileMap, triggerNoteSync } = useApp()
+  const { recurringMeetings, templates, saveMeetingNote, meetingNotes, settings, update, t, sectionPresets, saveSectionPreset, deleteSectionPreset, syncConfigs, syncFileMap, updateSyncFileMap, triggerNoteSync, customers } = useApp()
   const effectiveRecurringMeetingId = existingNote?.recurringMeetingId || recurringMeetingId
   const recurringMeeting = recurringMeetings.find((m) => m.id === effectiveRecurringMeetingId)
 
   const [note, setNote] = useState(() => {
     if (existingNote) return { ...existingNote }
-    const base = emptyNote(recurringMeeting, settings)
+    const base = emptyNote(recurringMeeting, settings, customers)
     if (prefilledCustomer) base.customer = prefilledCustomer
     if (effectiveRecurringMeetingId) {
       const lastNote = meetingNotes
@@ -167,6 +194,14 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
   const [lastDraftSave, setLastDraftSave] = useState(null)
   const [notesOverlayOpen, setNotesOverlayOpen] = useState(false)
   const [openNotesToken, setOpenNotesToken] = useState(null)
+
+  // Preview navigation: 0 = current editing note, 1 = most-recent saved series note, 2 = next older, …
+  const [previewNavPos, setPreviewNavPos] = useState(0)
+  // Preview view mode: 'standard' | 'internal' | 'both' (both only when bothActive)
+  const [previewViewMode, setPreviewViewMode] = useState(() => {
+    const m = (existingNote || {}).modes || {}
+    return m.internal && !m.standard ? 'internal' : 'standard'
+  })
 
   const STRUCTURAL_KEYS = new Set(['sections', 'internalSections', 'modes', 'templateId', 'internalTemplateId'])
 
@@ -411,7 +446,8 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
       const templateToExport = isExportingInternal ? resolvedInternalTemplate : resolvedTemplate
       const exportedNote = { ...finalNote(), sections: sectionsToExport }
       const modeTag = isExportingInternal ? '_internal' : ''
-      const base = `${formatDateForFilename(note.date)}_${effectiveTitle.replace(/\s+/g, '_')}${modeTag}`
+      const safeTitle = effectiveTitle.replace(/[·•\\/:"*?<>|]/g, '').replace(/\s+/g, '_').replace(/_+/g, '_').slice(0, 80)
+      const base = `${formatDateForFilename(note.date)}_${safeTitle}${modeTag}`
 
       if (exportFormat === 'pdf') {
         const chartImgs = await captureChartImages(sectionsToExport)
@@ -453,6 +489,55 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
     : (note.sections || [])
   const previewTemplate = activeMode === 'internal' && internalActive ? resolvedInternalTemplate : resolvedTemplate
   const previewNoteForMode = { ...previewNote, sections: previewSections }
+
+  // Series notes for preview navigation (newest first, excludes current editing note)
+  const seriesNotesForNav = effectiveRecurringMeetingId
+    ? meetingNotes
+        .filter((n) => n.recurringMeetingId === effectiveRecurringMeetingId && n.id !== note.id && !n.isDraft)
+        .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    : []
+
+  const previewedSeriesNote = previewNavPos > 0 ? (seriesNotesForNav[previewNavPos - 1] || null) : null
+
+  // Standard preview data
+  const stdPreviewNote = {
+    ...(previewedSeriesNote || previewNote),
+    sections: previewedSeriesNote ? (previewedSeriesNote.sections || []) : (note.sections || []),
+  }
+  const stdPreviewTemplate = previewedSeriesNote
+    ? templates.find((tpl) => tpl.id === previewedSeriesNote.templateId) || null
+    : resolvedTemplate
+
+  // Internal preview data
+  const intPreviewNote = {
+    ...(previewedSeriesNote || previewNote),
+    sections: previewedSeriesNote ? (previewedSeriesNote.internalSections || []) : (note.internalSections || []),
+  }
+  const intPreviewTemplate = previewedSeriesNote
+    ? templates.find((tpl) => tpl.id === previewedSeriesNote.internalTemplateId) || null
+    : resolvedInternalTemplate
+
+  // Effective preview view mode (guards against invalid states)
+  const effectivePreviewViewMode =
+    !internalNotesEnabled || !bothActive
+      ? (internalActive ? 'internal' : 'standard')
+      : previewViewMode === 'both'
+      ? 'both'
+      : previewViewMode === 'internal' && internalActive
+      ? 'internal'
+      : 'standard'
+
+  // Navigation label + directional flags
+  const hasPrevNote = previewNavPos < seriesNotesForNav.length
+  const hasNextNote = previewNavPos > 0
+  const noteNavLabel = seriesNotesForNav.length === 0 ? '' :
+    previewNavPos === 0
+      ? 'Current (editing)'
+      : (() => {
+          const n = seriesNotesForNav[previewNavPos - 1]
+          if (!n?.date) return 'Unknown date'
+          return new Date(n.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+        })()
 
   return (
     <div>
@@ -583,7 +668,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
         )}
         <button
           onClick={() => setNotesOverlayOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950 border border-purple-200 dark:border-purple-800 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700 transition-colors"
           title="Open notes editor"
         >
           <Brain size={13} /> Notes
@@ -930,12 +1015,90 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
         {/* Right column: live preview — independently scrollable */}
         {previewOpen && (
           <div className="flex-1 min-w-0 overflow-y-auto pb-6">
-            <A4Preview
-              note={previewNoteForMode}
-              template={previewTemplate}
-              t={exportT}
-              isInternal={activeMode === 'internal' && internalActive}
-            />
+            {/* Preview view mode toggle (Standard / Internal / Both) */}
+            {internalNotesEnabled && bothActive && (
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1 shrink-0">
+                  <Lock size={11} /> Preview:
+                </span>
+                <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-full p-0.5">
+                  {['standard', 'internal', 'both'].map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setPreviewViewMode(m)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                        effectivePreviewViewMode === m
+                          ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white'
+                          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      {m.charAt(0).toUpperCase() + m.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {effectivePreviewViewMode === 'both' ? (
+              <div>
+                {/* Navigation bar for both-mode (shown above the two side-by-side previews) */}
+                {seriesNotesForNav.length > 0 && (
+                  <div className="flex items-center gap-1 mb-2 px-1">
+                    <button
+                      onClick={() => setPreviewNavPos((p) => Math.min(p + 1, seriesNotesForNav.length))}
+                      disabled={!hasPrevNote}
+                      className="p-1 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 transition-colors shrink-0"
+                      title="Older meeting"
+                    >
+                      <ChevronLeft size={14} />
+                    </button>
+                    <span className="flex-1 text-center text-xs text-gray-500 dark:text-gray-400 truncate select-none">
+                      {noteNavLabel}
+                    </span>
+                    <button
+                      onClick={() => setPreviewNavPos((p) => Math.max(p - 1, 0))}
+                      disabled={!hasNextNote}
+                      className="p-1 rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 disabled:opacity-30 transition-colors shrink-0"
+                      title="Newer meeting"
+                    >
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Standard</p>
+                    <A4Preview
+                      note={stdPreviewNote}
+                      template={stdPreviewTemplate}
+                      t={exportT}
+                      isInternal={false}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Internal</p>
+                    <A4Preview
+                      note={intPreviewNote}
+                      template={intPreviewTemplate}
+                      t={exportT}
+                      isInternal={true}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <A4Preview
+                note={effectivePreviewViewMode === 'internal' ? intPreviewNote : stdPreviewNote}
+                template={effectivePreviewViewMode === 'internal' ? intPreviewTemplate : stdPreviewTemplate}
+                t={exportT}
+                isInternal={effectivePreviewViewMode === 'internal'}
+                hasPrevNote={hasPrevNote}
+                hasNextNote={hasNextNote}
+                onPrevNote={() => setPreviewNavPos((p) => Math.min(p + 1, seriesNotesForNav.length))}
+                onNextNote={() => setPreviewNavPos((p) => Math.max(p - 1, 0))}
+                noteNavLabel={noteNavLabel}
+              />
+            )}
           </div>
         )}
       </div>
