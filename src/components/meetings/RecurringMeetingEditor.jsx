@@ -128,11 +128,14 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, pre
         {/* Identity */}
         <div className="card p-4 space-y-4">
           <h2 className="section-title text-base">Meeting Identity</h2>
-          <div>
-            <label className="label">Meeting Name *</label>
-            <input className="input" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Weekly Jour Fixe" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+
+          {/* When launched from a customer/project: show entity badge; otherwise show dropdown */}
+          {prefilledCustomerId ? (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-light dark:bg-accent-light border border-accent/20 text-sm font-medium text-accent">
+              {(customers || []).find((c) => c.id === prefilledCustomerId)?.emoji || ''}
+              {' '}{form.customer}
+            </div>
+          ) : (
             <div>
               <label className="label">Customer / Project</label>
               <select
@@ -141,7 +144,16 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, pre
                 onChange={(e) => {
                   const id = e.target.value
                   const entity = (customers || []).find((c) => c.id === id)
-                  setForm((f) => ({ ...f, customerId: id, customer: entity ? entity.name : '' }))
+                  const defs = id ? resolveEntityDefaults(id, customers) : {}
+                  setForm((f) => ({
+                    ...f,
+                    customerId: id,
+                    customer: entity ? entity.name : '',
+                    ...(defs.templateId && !f._templateManuallySet ? { templateId: defs.templateId } : {}),
+                    ...(defs.language && !f._languageManuallySet ? { language: defs.language } : {}),
+                    ...(defs.eventType && !f._eventTypeManuallySet ? { eventType: defs.eventType } : {}),
+                    ...(defs.tone ? { defaultNotesTone: defs.tone } : {}),
+                  }))
                 }}
               >
                 <option value="">— None (Misc Meeting) —</option>
@@ -165,14 +177,45 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, pre
                   })}
               </select>
             </div>
+          )}
+
+          <div>
+            <label className="label">Meeting Name *</label>
+            <input className="input" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Weekly Jour Fixe" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Default Template</label>
+              <select className="input" value={form.templateId} onChange={(e) => set('templateId', e.target.value)}>
+                <option value="">None (use system default)</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="label">Event Type</label>
               <input className="input" value={form.eventType} onChange={(e) => set('eventType', e.target.value)} placeholder="e.g. Jour Fixe" />
             </div>
           </div>
-          <div>
-            <label className="label">Team / Recipient Group</label>
-            <input className="input" value={form.team} onChange={(e) => set('team', e.target.value)} placeholder="e.g. Marketing Team" />
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label flex items-center gap-1.5">
+                <Globe size={13} className="text-gray-400" /> Language
+              </label>
+              <select className="input" value={form.language} onChange={(e) => set('language', e.target.value)}>
+                <option value="">System / app default</option>
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>{l.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Team / Recipient Group</label>
+              <input className="input" value={form.team} onChange={(e) => set('team', e.target.value)} placeholder="e.g. Marketing Team" />
+            </div>
           </div>
         </div>
 
@@ -357,33 +400,6 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, pre
             </div>
           </div>
         )}
-
-        {/* Default template + language */}
-        <div className="card p-4 space-y-3">
-          <div>
-            <label className="label">Default Template</label>
-            <select className="input" value={form.templateId} onChange={(e) => set('templateId', e.target.value)}>
-              <option value="">None (use app default)</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label flex items-center gap-1.5">
-              <Globe size={13} className="text-gray-400" /> Meeting Language
-            </label>
-            <select className="input" value={form.language} onChange={(e) => set('language', e.target.value)}>
-              <option value="">System / app default</option>
-              {LANGUAGES.map((l) => (
-                <option key={l.code} value={l.code}>{l.label}</option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              Applied to all notes written for this recurring meeting.
-            </p>
-          </div>
-        </div>
 
         {/* Participants */}
         <div className="card p-4">

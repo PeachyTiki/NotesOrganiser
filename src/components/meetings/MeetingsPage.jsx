@@ -393,6 +393,10 @@ export default function MeetingsPage() {
     const subMeetingCount = subsList.reduce((acc, sub) => acc + (meetingsByEntityId[sub.id] || []).length, 0)
     const totalCount = directMeetingCount + subMeetingCount
 
+    const folderColor = entity?.customerSettings?.folderColor || null
+    const folderStyle = folderColor ? { color: folderColor } : undefined
+    const folderIconClass = `shrink-0${folderColor ? '' : ' text-accent'}`
+
     return (
       <div className={`flex items-center gap-2 px-4 py-3 ${isSubEntity ? 'bg-gray-50/50 dark:bg-gray-800/30' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
         <button
@@ -402,8 +406,8 @@ export default function MeetingsPage() {
           {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
         </button>
         {isOpen
-          ? <FolderOpen size={16} className="text-accent shrink-0" />
-          : <Folder size={16} className="text-accent shrink-0" />
+          ? <FolderOpen size={16} className={folderIconClass} style={folderStyle} />
+          : <Folder size={16} className={folderIconClass} style={folderStyle} />
         }
 
         {/* Type badge */}
@@ -473,10 +477,10 @@ export default function MeetingsPage() {
             {!isSubEntity && (
               <button
                 onClick={() => setMasterNotesCustomer(entity)}
-                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-accent hover:bg-accent-light dark:hover:bg-accent-light transition-colors shrink-0"
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shrink-0"
                 title={t('masterNotes')}
               >
-                <BookMarked size={13} /> {t('masterNotes')}
+                <BookMarked size={13} />
               </button>
             )}
             <button
@@ -784,13 +788,6 @@ export default function MeetingsPage() {
                 <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
                   {miscMeetings.length} meeting{miscMeetings.length !== 1 ? 's' : ''}
                 </span>
-                <button
-                  onClick={() => { setEditingMeeting(null); setPrefilledCustomer(null); setPrefilledCustomerId(null); setView('editRecurring') }}
-                  className="p-1.5 text-gray-400 hover:text-accent transition-colors shrink-0"
-                  title="New recurring misc meeting"
-                >
-                  <Plus size={14} />
-                </button>
               </div>
 
               {openCustomers['__misc__'] && (
@@ -814,8 +811,14 @@ export default function MeetingsPage() {
                       ))}
                     </div>
                   )}
-                  {/* One-off misc meeting note button */}
-                  <div className="mt-4 flex justify-end">
+                  <div className="mt-4 flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => { setEditingMeeting(null); setPrefilledCustomer(null); setPrefilledCustomerId(null); setView('editRecurring') }}
+                      className="btn-secondary text-sm flex items-center gap-1.5"
+                      title="New recurring misc meeting"
+                    >
+                      <Plus size={13} /> Recurring Misc Meeting
+                    </button>
                     <button
                       onClick={() => { setNoteConfig({ recurringMeetingId: null }); setView('newNote') }}
                       className="btn-secondary text-sm flex items-center gap-1.5"
