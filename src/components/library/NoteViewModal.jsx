@@ -22,6 +22,8 @@ function slug(str) {
 export default function NoteViewModal({ note, onEdit, onClose }) {
   const { templates, settings, meetingNotes } = useApp()
   const internalNotesEnabled = !!settings?.internalNotesEnabled
+  const tasksEnabled = !!settings?.tasksEnabled
+  const stripTasks = (secs) => tasksEnabled ? secs : (secs || []).filter((s) => s.type !== 'tasks')
 
   // Build sorted series for navigation (newest first)
   const seriesNotes = note.recurringMeetingId
@@ -49,7 +51,7 @@ export default function NoteViewModal({ note, onEdit, onClose }) {
   useEffect(() => {
     const hs = currentNote.modes?.standard !== false
     const hi = internalNotesEnabled && !!currentNote.modes?.internal
-    if (viewMode === 'internal' && !hi) setViewMode(hs ? 'standard' : 'standard')
+    if (viewMode === 'internal' && !hi) setViewMode('standard')
     if (viewMode === 'both' && (!hs || !hi)) setViewMode(hi ? 'internal' : 'standard')
   }, [currentIdx])
 
@@ -62,8 +64,8 @@ export default function NoteViewModal({ note, onEdit, onClose }) {
   const intTemplate = templates.find((t) => t.id === currentNote.internalTemplateId) || null
   const exportT = makeT(currentNote.language)
 
-  const stdNote = { ...currentNote, sections: currentNote.sections || [] }
-  const intNote = { ...currentNote, sections: currentNote.internalSections || [] }
+  const stdNote = { ...currentNote, sections: stripTasks(currentNote.sections || []) }
+  const intNote = { ...currentNote, sections: stripTasks(currentNote.internalSections || []) }
   const isInternal = effectiveViewMode === 'internal'
   const noteForExport = isInternal ? intNote : stdNote
   const templateForExport = isInternal ? intTemplate : stdTemplate
@@ -86,9 +88,9 @@ export default function NoteViewModal({ note, onEdit, onClose }) {
       if (!inInput) {
         if (e.key === 'ArrowLeft')  { if (hasPrev) setCurrentIdx((i) => i + 1); return }
         if (e.key === 'ArrowRight') { if (hasNext) setCurrentIdx((i) => i - 1); return }
-        if (e.key === '=' || e.key === '+') { zoomIn(); return }
-        if (e.key === '-' || e.key === '_') { zoomOut(); return }
-        if (e.key === '0') { zoomReset(); return }
+        if (e.key === '=' || e.key === '+') { setViewZoom((z) => Math.min(ZOOM_MAX, parseFloat((z + ZOOM_STEP).toFixed(2)))); return }
+        if (e.key === '-' || e.key === '_') { setViewZoom((z) => Math.max(ZOOM_MIN, parseFloat((z - ZOOM_STEP).toFixed(2)))); return }
+        if (e.key === '0') { setViewZoom(1); return }
       }
     }
     document.addEventListener('keydown', handler)

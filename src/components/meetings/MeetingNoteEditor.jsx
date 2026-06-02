@@ -266,6 +266,8 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
   const effectiveTitle = note.title.trim() || autoTitle || 'Untitled Meeting'
 
   const internalNotesEnabled = !!settings?.internalNotesEnabled
+  const tasksEnabled = !!settings?.tasksEnabled
+  const stripTasks = (secs) => tasksEnabled ? secs : (secs || []).filter((s) => s.type !== 'tasks')
   const standardActive = note.modes?.standard !== false
   const internalActive = internalNotesEnabled && !!note.modes?.internal
   const bothActive = standardActive && internalActive
@@ -440,9 +442,9 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
       await new Promise((r) => setTimeout(r, 350))
 
       const isExportingInternal = activeMode === 'internal' && internalActive
-      const sectionsToExport = isExportingInternal
+      const sectionsToExport = stripTasks(isExportingInternal
         ? processTopicStatuses(note.internalSections || [])
-        : processTopicStatuses(note.sections)
+        : processTopicStatuses(note.sections))
       const templateToExport = isExportingInternal ? resolvedInternalTemplate : resolvedTemplate
       const exportedNote = { ...finalNote(), sections: sectionsToExport }
       const modeTag = isExportingInternal ? '_internal' : ''
@@ -484,9 +486,9 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
   }
 
   const previewNote = { ...finalNote() }
-  const previewSections = activeMode === 'internal' && internalActive
+  const previewSections = stripTasks(activeMode === 'internal' && internalActive
     ? (note.internalSections || [])
-    : (note.sections || [])
+    : (note.sections || []))
   const previewTemplate = activeMode === 'internal' && internalActive ? resolvedInternalTemplate : resolvedTemplate
   const previewNoteForMode = { ...previewNote, sections: previewSections }
 
@@ -502,7 +504,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
   // Standard preview data
   const stdPreviewNote = {
     ...(previewedSeriesNote || previewNote),
-    sections: previewedSeriesNote ? (previewedSeriesNote.sections || []) : (note.sections || []),
+    sections: stripTasks(previewedSeriesNote ? (previewedSeriesNote.sections || []) : (note.sections || [])),
   }
   const stdPreviewTemplate = previewedSeriesNote
     ? templates.find((tpl) => tpl.id === previewedSeriesNote.templateId) || null
@@ -511,7 +513,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
   // Internal preview data
   const intPreviewNote = {
     ...(previewedSeriesNote || previewNote),
-    sections: previewedSeriesNote ? (previewedSeriesNote.internalSections || []) : (note.internalSections || []),
+    sections: stripTasks(previewedSeriesNote ? (previewedSeriesNote.internalSections || []) : (note.internalSections || [])),
   }
   const intPreviewTemplate = previewedSeriesNote
     ? templates.find((tpl) => tpl.id === previewedSeriesNote.internalTemplateId) || null
@@ -1224,7 +1226,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
       {showCanvas && (
         <div id="offscreen-export-canvas" className="fixed -left-[9999px] top-0 pointer-events-none">
           <NoteExportCanvas
-            note={{ ...finalNote(), sections: activeMode === 'internal' && internalActive ? (note.internalSections || []) : (note.sections || []) }}
+            note={{ ...finalNote(), sections: stripTasks(activeMode === 'internal' && internalActive ? (note.internalSections || []) : (note.sections || [])) }}
             template={activeMode === 'internal' && internalActive ? resolvedInternalTemplate : resolvedTemplate}
             t={exportT}
             isInternal={activeMode === 'internal' && internalActive}
