@@ -52,14 +52,47 @@ function ordSuffix(d) {
   return d === 1 || d === 21 ? 'st' : d === 2 || d === 22 ? 'nd' : d === 3 || d === 23 ? 'rd' : 'th'
 }
 
-export default function RecurringMeetingEditor({ meeting, prefilledCustomer, onClose }) {
+function resolveEntityDefaults(entityId, customers) {
+  const findById = (id) => (customers || []).find((c) => c.id === id)
+  let entity = findById(entityId)
+  const result = {}
+  while (entity) {
+    const cs = entity.customerSettings || {}
+    if (!result.templateId && cs.defaultTemplateId) result.templateId = cs.defaultTemplateId
+    if (!result.language && cs.defaultLanguage) result.language = cs.defaultLanguage
+    if (!result.eventType && cs.defaultEventType) result.eventType = cs.defaultEventType
+    if (!result.tone && (cs.defaultAiFormality || cs.defaultAiConciseness || cs.defaultAiInstructions)) {
+      result.tone = {
+        formality: cs.defaultAiFormality || 'professional',
+        conciseness: cs.defaultAiConciseness || 'balanced',
+        customInstructions: cs.defaultAiInstructions || '',
+      }
+    }
+    entity = entity.parentId ? findById(entity.parentId) : null
+  }
+  return result
+}
+
+export default function RecurringMeetingEditor({ meeting, prefilledCustomer, prefilledCustomerId, onClose }) {
   const { saveRecurringMeeting, deleteRecurringMeeting, templates, settings, customers, settings: appSettings } = useApp()
   const internalNotesEnabled = !!appSettings?.internalNotesEnabled
-  const [form, setForm] = useState(
-    meeting
-      ? { ...meeting, schedule: meeting.schedule || { type: 'none' }, participants: meeting.participants?.map((p) => ({ ...p })) || [] }
-      : { ...emptyMeeting(settings), customer: prefilledCustomer || '' }
-  )
+  const [form, setForm] = useState(() => {
+    if (meeting) {
+      return { ...meeting, schedule: meeting.schedule || { type: 'none' }, participants: meeting.participants?.map((p) => ({ ...p })) || [] }
+    }
+    const base = { ...emptyMeeting(settings), customer: prefilledCustomer || '' }
+    if (prefilledCustomerId) {
+      const entity = (customers || []).find((c) => c.id === prefilledCustomerId)
+      base.customerId = prefilledCustomerId
+      base.customer = entity?.name || prefilledCustomer || ''
+      const defs = resolveEntityDefaults(prefilledCustomerId, customers)
+      if (defs.templateId) base.templateId = defs.templateId
+      if (defs.language) base.language = defs.language
+      if (defs.eventType) base.eventType = defs.eventType
+      if (defs.tone) base.defaultNotesTone = defs.tone
+    }
+    return base
+  })
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }))
   const setSchedule = (key, val) => setForm((f) => ({ ...f, schedule: { ...(f.schedule || {}), [key]: val } }))

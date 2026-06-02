@@ -787,7 +787,7 @@ export default function MeetingsPage() {
                 <button
                   onClick={() => { setEditingMeeting(null); setPrefilledCustomer(null); setPrefilledCustomerId(null); setView('editRecurring') }}
                   className="p-1.5 text-gray-400 hover:text-accent transition-colors shrink-0"
-                  title="New misc meeting"
+                  title="New recurring misc meeting"
                 >
                   <Plus size={14} />
                 </button>
@@ -796,7 +796,7 @@ export default function MeetingsPage() {
               {openCustomers['__misc__'] && (
                 <div className="p-4">
                   {miscMeetings.length === 0 ? (
-                    <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">No misc meetings</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">No misc meetings yet</p>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {miscMeetings.map((mtg) => (
@@ -814,6 +814,16 @@ export default function MeetingsPage() {
                       ))}
                     </div>
                   )}
+                  {/* One-off misc meeting note button */}
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      onClick={() => { setNoteConfig({ recurringMeetingId: null }); setView('newNote') }}
+                      className="btn-secondary text-sm flex items-center gap-1.5"
+                      title="Write a single one-off misc meeting note"
+                    >
+                      <Plus size={13} /> One-off Misc Note
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

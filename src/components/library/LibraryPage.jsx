@@ -543,6 +543,10 @@ export default function LibraryPage() {
             const isCustomerOpen = openCustomers[group.customerName]
             const groupNotes = group.subgroups.flatMap((sg) => sg.notes)
 
+            const folderColor = customerByName[group.customerName.toLowerCase()]?.customerSettings?.folderColor || null
+            const folderStyle = folderColor ? { color: folderColor } : undefined
+            const folderIconClass = `shrink-0${folderColor ? '' : ' text-accent'}`
+
             return (
               <div key={group.customerName} className="card overflow-hidden">
                 {/* Customer-level header */}
@@ -552,8 +556,8 @@ export default function LibraryPage() {
                     className="flex-1 flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors text-left min-w-0"
                   >
                     {isCustomerOpen
-                      ? <FolderOpen size={18} className="text-accent shrink-0" />
-                      : <Folder size={18} className="text-accent shrink-0" />
+                      ? <FolderOpen size={18} className={folderIconClass} style={folderStyle} />
+                      : <Folder size={18} className={folderIconClass} style={folderStyle} />
                     }
                     <div className="min-w-0 flex-1">
                       <span className="font-semibold text-gray-900 dark:text-white text-sm">{group.customerName}</span>
@@ -581,10 +585,10 @@ export default function LibraryPage() {
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); setMasterNotesCustomer(customerByName[group.customerName.toLowerCase()]) }}
-                          className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-accent hover:bg-accent-light dark:hover:bg-accent-light transition-colors shrink-0"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                           title={t('masterNotes')}
                         >
-                          <BookMarked size={12} /> {t('masterNotes')}
+                          <BookMarked size={13} />
                         </button>
                       </>
                     )}

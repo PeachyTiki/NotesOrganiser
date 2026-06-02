@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { X, Settings, LayoutTemplate, Globe, Download, Tag, Pencil } from 'lucide-react'
+import { X, Settings, LayoutTemplate, Globe, Download, Tag, Pencil, Folder } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { LANGUAGES } from '../../utils/i18n'
 
@@ -8,6 +8,20 @@ const EXPORT_FORMATS = [
   { value: 'pdf', label: 'PDF (.pdf)' },
   { value: 'png', label: 'Image (.png)' },
   { value: 'docx', label: 'Word (.docx)' },
+]
+
+const PRESET_COLORS = [
+  { label: 'Default', value: '' },
+  { label: 'Blue',    value: '#3B82F6' },
+  { label: 'Indigo',  value: '#6366F1' },
+  { label: 'Purple',  value: '#8B5CF6' },
+  { label: 'Pink',    value: '#EC4899' },
+  { label: 'Red',     value: '#EF4444' },
+  { label: 'Orange',  value: '#F97316' },
+  { label: 'Yellow',  value: '#EAB308' },
+  { label: 'Green',   value: '#10B981' },
+  { label: 'Teal',    value: '#14B8A6' },
+  { label: 'Gray',    value: '#6B7280' },
 ]
 
 export default function EntitySettingsModal({ entity, onClose }) {
@@ -23,6 +37,7 @@ export default function EntitySettingsModal({ entity, onClose }) {
     defaultAiFormality: cs.defaultAiFormality || '',
     defaultAiConciseness: cs.defaultAiConciseness || '',
     defaultAiInstructions: cs.defaultAiInstructions || '',
+    folderColor: cs.folderColor || '',
   })
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }))
@@ -39,6 +54,7 @@ export default function EntitySettingsModal({ entity, onClose }) {
         defaultAiFormality: form.defaultAiFormality,
         defaultAiConciseness: form.defaultAiConciseness,
         defaultAiInstructions: form.defaultAiInstructions,
+        folderColor: form.folderColor,
       },
     })
     onClose()
@@ -79,6 +95,52 @@ export default function EntitySettingsModal({ entity, onClose }) {
               onChange={(e) => setName(e.target.value)}
               placeholder={entity.name}
             />
+          </div>
+
+          {/* Folder colour */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Folder size={13} className="text-accent shrink-0" />
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Folder Colour</p>
+              {form.folderColor && (
+                <div className="w-4 h-4 rounded-full border border-gray-200 dark:border-gray-600 ml-1 shrink-0" style={{ backgroundColor: form.folderColor }} />
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {PRESET_COLORS.map((c) => (
+                <button
+                  key={c.value}
+                  onClick={() => set('folderColor', c.value)}
+                  className={`w-7 h-7 rounded-full border-2 transition-all ${
+                    form.folderColor === c.value
+                      ? 'border-gray-800 dark:border-white scale-110 shadow'
+                      : 'border-transparent hover:scale-105'
+                  }`}
+                  style={c.value ? { backgroundColor: c.value } : undefined}
+                  title={c.label}
+                >
+                  {!c.value && (
+                    <span className="flex items-center justify-center w-full h-full rounded-full bg-gray-200 dark:bg-gray-700 text-gray-400 text-xs">✕</span>
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                className="w-8 h-8 rounded cursor-pointer border border-gray-200 dark:border-gray-600 p-0.5 bg-white dark:bg-gray-800"
+                value={form.folderColor || '#6366F1'}
+                onChange={(e) => set('folderColor', e.target.value)}
+                title="Custom colour"
+              />
+              <input
+                className="input text-xs font-mono w-28"
+                value={form.folderColor}
+                onChange={(e) => set('folderColor', e.target.value)}
+                placeholder="#hex or empty"
+                maxLength={7}
+              />
+            </div>
           </div>
 
           <p className="text-xs text-gray-500 dark:text-gray-400">
