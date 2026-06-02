@@ -12,6 +12,7 @@ import MeetingNoteEditor from '../meetings/MeetingNoteEditor'
 import NoteViewModal from './NoteViewModal'
 import MasterNotesModal from '../MasterNotesModal'
 import SyncPanel from './SyncPanel'
+import EntitySettingsModal from '../meetings/EntitySettingsModal'
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
@@ -139,7 +140,7 @@ function AIContextButton({ notes, label, scope, iconSize = 12, showText = false 
     <button
       onClick={handleClick}
       disabled={busy || !notes.length}
-      className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-950 disabled:opacity-40"
+      className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40"
       title="Export AI context prompt — feed to ChatGPT / Claude for a full summary"
     >
       <Brain size={iconSize} />
@@ -153,6 +154,7 @@ export default function LibraryPage() {
   const internalNotesEnabled = !!settings?.internalNotesEnabled
   const [editingNote, setEditingNote] = useState(null)
   const [viewingNote, setViewingNote] = useState(null)
+  const [editingEntity, setEditingEntity] = useState(null)
   const [masterNotesCustomer, setMasterNotesCustomer] = useState(null)
   const [syncPanelOpen, setSyncPanelOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -569,13 +571,22 @@ export default function LibraryPage() {
                   </button>
                   <div className="pr-3 flex items-center gap-1">
                     {customerByName[group.customerName.toLowerCase()] && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setMasterNotesCustomer(customerByName[group.customerName.toLowerCase()]) }}
-                        className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-accent hover:bg-accent-light dark:hover:bg-accent-light transition-colors shrink-0"
-                        title={t('masterNotes')}
-                      >
-                        <BookMarked size={12} /> {t('masterNotes')}
-                      </button>
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingEntity(customerByName[group.customerName.toLowerCase()]) }}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-accent hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                          title="Edit defaults"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setMasterNotesCustomer(customerByName[group.customerName.toLowerCase()]) }}
+                          className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-accent hover:bg-accent-light dark:hover:bg-accent-light transition-colors shrink-0"
+                          title={t('masterNotes')}
+                        >
+                          <BookMarked size={12} /> {t('masterNotes')}
+                        </button>
+                      </>
                     )}
                     <AIContextButton notes={groupNotes} label={group.customerName} scope="customer" />
                     <BulkExportButton
@@ -676,8 +687,15 @@ export default function LibraryPage() {
       {viewingNote && (
         <NoteViewModal
           note={viewingNote}
-          onEdit={() => setEditingNote(viewingNote)}
+          onEdit={(n) => setEditingNote(n || viewingNote)}
           onClose={() => setViewingNote(null)}
+        />
+      )}
+
+      {editingEntity && (
+        <EntitySettingsModal
+          entity={editingEntity}
+          onClose={() => setEditingEntity(null)}
         />
       )}
 

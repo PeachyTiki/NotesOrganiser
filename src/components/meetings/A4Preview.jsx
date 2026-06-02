@@ -13,11 +13,16 @@ export default function A4Preview({
   note, template, t, isInternal = false,
   hasPrevNote = false, hasNextNote = false,
   onPrevNote, onNextNote, noteNavLabel = '',
+  externalZoom,   // when set, overrides internal zoom and hides the zoom controls row
+  onZoomChange,   // called with new zoom value when user clicks zoom buttons
 }) {
   const containerRef = useRef(null)
   const innerRef = useRef(null)
   const [containerW, setContainerW] = useState(0)
-  const [zoomFactor, setZoomFactor] = useState(1)
+  const [internalZoom, setInternalZoom] = useState(1)
+  const isExternalZoom = externalZoom !== undefined
+  const zoomFactor = isExternalZoom ? externalZoom : internalZoom
+  const applyZoom = (val) => { if (onZoomChange) onZoomChange(val); else setInternalZoom(val) }
   const [innerH, setInnerH] = useState(0)
   const [mode, setMode] = useState('scroll') // 'scroll' | 'flip'
   const [currentPage, setCurrentPage] = useState(1)
@@ -132,32 +137,34 @@ export default function A4Preview({
           )}
         </p>
 
-        {/* Zoom controls */}
-        <div className="flex items-center gap-0.5 shrink-0">
-          <button
-            onClick={() => setZoomFactor((f) => Math.max(ZOOM_MIN, parseFloat((f - ZOOM_STEP).toFixed(2))))}
-            disabled={zoomFactor <= ZOOM_MIN}
-            className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-30 transition-colors"
-            title="Zoom out"
-          >
-            <ZoomOut size={13} />
-          </button>
-          <button
-            onClick={() => setZoomFactor(1)}
-            className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 w-9 text-center px-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            title="Reset zoom to 100%"
-          >
-            {zoomPct}%
-          </button>
-          <button
-            onClick={() => setZoomFactor((f) => Math.min(ZOOM_MAX, parseFloat((f + ZOOM_STEP).toFixed(2))))}
-            disabled={zoomFactor >= ZOOM_MAX}
-            className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-30 transition-colors"
-            title="Zoom in"
-          >
-            <ZoomIn size={13} />
-          </button>
-        </div>
+        {/* Zoom controls — hidden when parent controls zoom externally */}
+        {!isExternalZoom && (
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button
+              onClick={() => applyZoom(Math.max(ZOOM_MIN, parseFloat((zoomFactor - ZOOM_STEP).toFixed(2))))}
+              disabled={zoomFactor <= ZOOM_MIN}
+              className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-30 transition-colors"
+              title="Zoom out"
+            >
+              <ZoomOut size={13} />
+            </button>
+            <button
+              onClick={() => applyZoom(1)}
+              className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 w-9 text-center px-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              title="Reset zoom to 100%"
+            >
+              {zoomPct}%
+            </button>
+            <button
+              onClick={() => applyZoom(Math.min(ZOOM_MAX, parseFloat((zoomFactor + ZOOM_STEP).toFixed(2))))}
+              disabled={zoomFactor >= ZOOM_MAX}
+              className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-30 transition-colors"
+              title="Zoom in"
+            >
+              <ZoomIn size={13} />
+            </button>
+          </div>
+        )}
 
         {/* Mode toggle */}
         <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5 shrink-0">
