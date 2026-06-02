@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import {
-  Plus, FileEdit, ChevronRight, ChevronDown, Search, Sparkles,
+  Plus, FileEdit, RefreshCw, ChevronRight, ChevronDown, Search, Sparkles,
   Folder, FolderOpen, Pencil, Trash2, Check, X, Building2, ArrowUpDown, BookMarked, Settings,
 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
@@ -338,19 +338,8 @@ export default function MeetingsPage() {
     return (
       <>
         {meetings.length === 0 ? (
-          <div className="text-center py-6">
-            <p className="text-sm text-gray-400 dark:text-gray-500 mb-3">No recurring meetings yet</p>
-            <button
-              className="btn-secondary text-sm flex items-center gap-1.5 mx-auto"
-              onClick={() => {
-                setEditingMeeting(null)
-                setPrefilledCustomer(entityName)
-                setPrefilledCustomerId(entityId)
-                setView('editRecurring')
-              }}
-            >
-              <Plus size={14} /> Add Recurring Meeting
-            </button>
+          <div className="text-center py-4">
+            <p className="text-sm text-gray-400 dark:text-gray-500">No recurring meetings yet</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -369,12 +358,23 @@ export default function MeetingsPage() {
             ))}
           </div>
         )}
-        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center gap-2">
+          <button
+            onClick={() => {
+              setEditingMeeting(null)
+              setPrefilledCustomer(entityName)
+              setPrefilledCustomerId(entityId)
+              setView('editRecurring')
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-accent hover:text-accent hover:bg-accent-light dark:hover:bg-accent-light transition-colors"
+          >
+            <RefreshCw size={12} /> Recurring Meeting
+          </button>
           <button
             onClick={() => { setNoteConfig({ prefilledCustomer: entityName }); setView('newNote') }}
-            className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-accent transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-accent hover:text-accent hover:bg-accent-light dark:hover:bg-accent-light transition-colors"
           >
-            <FileEdit size={13} /> + {t('miscMeetings')}
+            <FileEdit size={12} /> One-off Note
           </button>
         </div>
       </>
@@ -483,18 +483,6 @@ export default function MeetingsPage() {
                 <BookMarked size={13} />
               </button>
             )}
-            <button
-              onClick={() => {
-                setEditingMeeting(null)
-                setPrefilledCustomer(entity.name)
-                setPrefilledCustomerId(entity.id)
-                setView('editRecurring')
-              }}
-              className="p-1.5 text-gray-400 hover:text-accent transition-colors shrink-0"
-              title="New recurring meeting"
-            >
-              <Plus size={14} />
-            </button>
             {!isSubEntity && (
               <button
                 onClick={() => { setAddingSubOf(entity.id); setNewSubName('') }}
