@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { X, User, Globe, Palette, Download, Database, Upload, Trash2, CheckCircle2, AlertTriangle, Brain, Lock, CheckSquare, Info } from 'lucide-react'
+import { X, User, Globe, Palette, Download, Database, Upload, Trash2, CheckCircle2, AlertTriangle, Brain, Lock, CheckSquare, Info, LayoutTemplate } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { LANGUAGES, getSystemLanguage } from '../utils/i18n'
 import Toggle from './Toggle'
@@ -213,6 +213,29 @@ export default function SettingsModal({ onClose }) {
               ))}
             </select>
           </div>
+
+          {/* Default template */}
+          {templates.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <LayoutTemplate size={14} className="text-accent" />
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Default Template</p>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Applied to new notes when no template is set at meeting or customer level.
+              </p>
+              <select
+                className="input"
+                value={form.defaultTemplateId || ''}
+                onChange={(e) => set('defaultTemplateId', e.target.value)}
+              >
+                <option value="">None (plain style)</option>
+                {templates.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* AI Notes defaults */}
           <div>
