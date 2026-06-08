@@ -578,16 +578,14 @@ export default function TasksPage() {
                         </span>
                       ) : (
                         <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-1.5">
-                            <div className="text-gray-700 dark:text-gray-300 font-medium truncate max-w-[140px]">{task.noteTitle}</div>
-                            <button
-                              onClick={() => handleOpenNote(task.noteId)}
-                              title="Open meeting note"
-                              className="shrink-0 p-0.5 text-gray-300 dark:text-gray-600 hover:text-accent dark:hover:text-accent transition-colors opacity-0 group-hover:opacity-100"
-                            >
-                              <FileText size={12} />
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => handleOpenNote(task.noteId)}
+                            title="Open meeting note"
+                            className="flex items-center gap-1 text-left text-gray-700 dark:text-gray-300 font-medium hover:text-accent dark:hover:text-accent transition-colors group/src"
+                          >
+                            <FileText size={11} className="shrink-0 text-gray-400 dark:text-gray-500 group-hover/src:text-accent transition-colors" />
+                            <span className="truncate max-w-[130px]">{task.noteTitle}</span>
+                          </button>
                           {task.customer && (
                             <div className="text-gray-400 dark:text-gray-500 truncate max-w-[140px]">{task.customer}</div>
                           )}
