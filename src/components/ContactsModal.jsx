@@ -51,7 +51,7 @@ function DroppableZone({ id, children }) {
 
 // ── Main component ─────────────────────────────────────────────────────────
 export default function ContactsModal({ entity, onClose }) {
-  const { saveCustomer, recurringMeetings } = useApp()
+  const { saveCustomer, recurringMeetings, customers } = useApp()
 
   const initList = entity.mailingList || { people: [], groups: [] }
 
@@ -124,7 +124,8 @@ export default function ContactsModal({ entity, onClose }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const persist = (newPeople, newGroups) => {
-    saveCustomer({ ...entity, mailingList: { people: newPeople, groups: newGroups } })
+    const liveEntity = customers.find((c) => c.id === entity.id) || entity
+    saveCustomer({ ...liveEntity, mailingList: { people: newPeople, groups: newGroups } })
   }
 
   // Group helpers
@@ -176,6 +177,7 @@ export default function ContactsModal({ entity, onClose }) {
     setManagerMode('list')
     setEditingGroup(null)
     setEditingPerson('new')
+    setActiveTab('contacts')
   }
   const startEditPerson = (person) => {
     const inList = people.find((p) => p.id === person.managerId)
@@ -190,6 +192,7 @@ export default function ContactsModal({ entity, onClose }) {
     setManagerMode(inList || !person.managerId ? 'list' : 'custom')
     setEditingGroup(null)
     setEditingPerson(person.id)
+    setActiveTab('contacts')
   }
   const cancelEditPerson = () => setEditingPerson(null)
   const savePerson = () => {

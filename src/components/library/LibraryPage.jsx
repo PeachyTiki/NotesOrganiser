@@ -639,7 +639,6 @@ export default function LibraryPage() {
                               }
                             </button>
                             <div className="pr-3 flex items-center gap-1">
-                              <AIContextButton notes={sg.notes} label={sg.label} scope="recurring_meeting" />
                               <BulkExportButton
                                 notes={sg.notes}
                                 exportGroups={[{ customerName: group.customerName, subgroups: [sg] }]}
