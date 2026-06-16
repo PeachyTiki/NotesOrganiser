@@ -46,6 +46,16 @@ function migrateState(raw) {
     parentId: null,
     customerSettings: {},
     ...c,
+    mailingList: {
+      people: (c.mailingList?.people || []).map((p) => ({
+        email: '',
+        phone: '',
+        managerId: '',
+        position: '',
+        ...p,
+      })),
+      groups: c.mailingList?.groups || [],
+    },
   }))
 
   // Build a name->id map for legacy meeting migration

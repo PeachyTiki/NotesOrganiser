@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Plus, FileEdit, RefreshCw, ChevronRight, ChevronDown, Search, Sparkles,
-  Folder, FolderOpen, Pencil, Trash2, Check, X, Building2, ArrowUpDown, BookMarked, Settings,
+  Folder, FolderOpen, Pencil, Trash2, Check, X, Building2, ArrowUpDown, BookMarked, Settings, User,
 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
@@ -9,6 +9,7 @@ import RecurringMeetingEditor, { scheduleLabel } from './RecurringMeetingEditor'
 import MeetingNoteEditor from './MeetingNoteEditor'
 import MasterNotesModal from '../MasterNotesModal'
 import EntitySettingsModal from './EntitySettingsModal'
+import ContactsModal from '../ContactsModal'
 
 
 function isScheduledToday(schedule) {
@@ -74,6 +75,7 @@ export default function MeetingsPage() {
   const [editingEmojiFor, setEditingEmojiFor] = useState(null)
   const [emojiVal, setEmojiVal] = useState('')
   const [entitySettingsFor, setEntitySettingsFor] = useState(null)
+  const [contactsFor, setContactsFor] = useState(null)
 
   const newCustomerInputRef = useRef(null)
   const renameInputRef = useRef(null)
@@ -493,6 +495,13 @@ export default function MeetingsPage() {
               </button>
             )}
             <button
+              onClick={() => setContactsFor(entity)}
+              className="p-1.5 text-gray-400 hover:text-accent transition-colors shrink-0"
+              title="Contacts"
+            >
+              <User size={13} />
+            </button>
+            <button
               onClick={() => startRename(entity)}
               className="p-1.5 text-gray-400 hover:text-sky-500 transition-colors shrink-0"
               title="Rename"
@@ -884,6 +893,12 @@ export default function MeetingsPage() {
         <EntitySettingsModal
           entity={entitySettingsFor}
           onClose={() => setEntitySettingsFor(null)}
+        />
+      )}
+      {contactsFor && (
+        <ContactsModal
+          entity={contactsFor}
+          onClose={() => setContactsFor(null)}
         />
       )}
     </div>
