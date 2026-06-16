@@ -592,7 +592,6 @@ export default function LibraryPage() {
                         </button>
                       </>
                     )}
-                    <AIContextButton notes={groupNotes} label={group.customerName} scope="customer" />
                     <BulkExportButton
                       notes={groupNotes}
                       exportGroups={[group]}
