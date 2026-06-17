@@ -16,6 +16,7 @@
     "asar": true,
     "files": [
       "dist/**/*",
+      "electron/main.cjs",
       "electron/preload.cjs"
     ],
     "directories": {
