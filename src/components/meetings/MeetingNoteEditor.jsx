@@ -736,23 +736,46 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
             </div>
             <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
               <label className="label mb-2">Export — Show / Hide</label>
-              <div className="grid grid-cols-2 gap-y-2">
+              <div className="space-y-1.5">
+                {/* Participants — parent toggle */}
+                <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={(note.displayOptions || {}).showParticipants !== false}
+                    onChange={(e) => setDisplayOption('showParticipants', e.target.checked)}
+                    className="rounded accent-accent"
+                  />
+                  Participants
+                </label>
+                {/* Sub-items — Roles & Companies */}
                 {[
-                  { key: 'showParticipants', label: 'Participants' },
-                  { key: 'showEventType',    label: 'Meeting Type' },
-                  { key: 'showRoles',        label: 'Roles' },
-                  { key: 'showFirms',        label: 'Companies' },
-                ].map(({ key, label }) => (
-                  <label key={key} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={(note.displayOptions || {})[key] !== false}
-                      onChange={(e) => setDisplayOption(key, e.target.checked)}
-                      className="rounded accent-accent"
-                    />
-                    {label}
-                  </label>
-                ))}
+                  { key: 'showRoles', label: 'Roles' },
+                  { key: 'showFirms', label: 'Companies' },
+                ].map(({ key, label }) => {
+                  const parentOff = (note.displayOptions || {}).showParticipants === false
+                  return (
+                    <label key={key} className={`flex items-center gap-2 text-xs cursor-pointer select-none ml-5 ${parentOff ? 'text-gray-300 dark:text-gray-600 pointer-events-none' : 'text-gray-500 dark:text-gray-400'}`}>
+                      <input
+                        type="checkbox"
+                        checked={(note.displayOptions || {})[key] !== false}
+                        onChange={(e) => setDisplayOption(key, e.target.checked)}
+                        className="rounded accent-accent"
+                        disabled={parentOff}
+                      />
+                      {label}
+                    </label>
+                  )
+                })}
+                {/* Meeting Type — standalone */}
+                <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={(note.displayOptions || {}).showEventType !== false}
+                    onChange={(e) => setDisplayOption('showEventType', e.target.checked)}
+                    className="rounded accent-accent"
+                  />
+                  Meeting Type
+                </label>
               </div>
             </div>
           </div>

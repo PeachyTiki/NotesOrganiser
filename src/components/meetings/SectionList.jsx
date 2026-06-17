@@ -38,6 +38,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
   arrayMove,
+  defaultAnimateLayoutChanges,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
@@ -197,7 +198,10 @@ function SectionCard({ section, onChange, onRemove, t, onOpenTextEditor, collaps
 }
 
 function SortableSection({ section, onChange, onRemove, t, onOpenTextEditor, collapsed, onToggleCollapse, isOver, isFirstNotesSection, showHint, onDismissHint }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: section.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: section.id,
+    animateLayoutChanges: (args) => defaultAnimateLayoutChanges({ ...args, wasDragging: true }),
+  })
 
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}>

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useContext, useEffect } from 'react'
-import { Brain, Download, ChevronDown, ChevronRight, Settings2 } from 'lucide-react'
+import { Brain, Download, ChevronDown, ChevronRight, Settings2, Clipboard } from 'lucide-react'
 import { SectionContext } from '../SectionList'
 import { buildSectionAIPrompt, importSectionJsonResponse } from '../../../utils/aiPrompt'
 import { markdownToHtml, htmlToPlainText } from '../../../utils/markdownToHtml'
@@ -57,7 +57,8 @@ export default function NotesSection({ section, onChange, isFirstNotesSection })
       const json = JSON.stringify(prompt, null, 2)
       if (aiPromptMode === 'clipboard') {
         navigator.clipboard.writeText(json).then(() => {
-          flash(setSuccess, successTimer, 'Prompt copied to clipboard — paste it in your AI assistant.')
+          setImportOpen(true)
+          flash(setSuccess, successTimer, 'Prompt copied — paste it in your AI assistant, then come back and paste the response below.')
         }).catch(() => {
           flash(setError, errorTimer, 'Failed to copy to clipboard.')
         })
@@ -120,7 +121,31 @@ export default function NotesSection({ section, onChange, isFirstNotesSection })
           onClick={handleExport}
           className="btn-secondary flex items-center gap-1.5 text-xs py-1 px-3"
         >
-          <Download size={12} /> Export JSON
+          {aiPromptMode === 'clipboard'
+            ? <><Clipboard size={12} /> Copy Prompt</>
+            : <><Download size={12} /> Export JSON</>
+          }
+        </button>
+
+        {aiPromptMode !== 'clipboard' && (
+          <button
+            onClick={() => setImportOpen((v) => !v)}
+            className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          >
+            <Brain size={12} className="text-purple-400" />
+            Import AI response
+            {importOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+          </button>
+        )}
+
+        <button
+          onClick={() => { setImportOpen((v) => !v); setPasteText('') }}
+          className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-purple-500 dark:hover:text-purple-400 transition-colors"
+          title="I already have the JSON — skip to paste"
+        >
+          <Brain size={12} className="text-purple-400" />
+          I have JSON
+          {importOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
         </button>
 
         <button
@@ -132,15 +157,6 @@ export default function NotesSection({ section, onChange, isFirstNotesSection })
           <span className="hidden sm:inline">{toneLabel} · {detailLabel}</span>
           <span className="sm:hidden">AI Settings</span>
           {toneOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-        </button>
-
-        <button
-          onClick={() => setImportOpen((v) => !v)}
-          className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-        >
-          <Brain size={12} className="text-purple-400" />
-          Import AI response
-          {importOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
         </button>
       </div>
 
@@ -209,6 +225,7 @@ export default function NotesSection({ section, onChange, isFirstNotesSection })
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
               placeholder={'Paste the AI response here — JSON or plain text:\n{"content": "## Summary\\n- Point one"}\nor just paste the text directly.'}
+              autoFocus
             />
           </div>
           <button onClick={handleApply} className="btn-primary flex items-center gap-1.5 text-xs py-1 px-3">

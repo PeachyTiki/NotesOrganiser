@@ -1,5 +1,4 @@
 import jsPDF from 'jspdf'
-import { htmlToPlainText } from './markdownToHtml'
 
 const PW = 210, PH = 297
 const ML = 15, MR = 15, MT = 15, MB = 18
@@ -141,6 +140,105 @@ class PageBuilder {
     this.needsPage(Math.min(imgH, PH - MT - MB))
     this.pdf.addImage(dataUrl, 'PNG', ML, this.y, imgW, imgH)
     this.y += imgH + 4
+  }
+}
+
+// Render HTML content (from rich text editor) into the PDF with inline formatting preserved.
+// Handles <strong>/<b>, <em>/<i>, <u>, <h1>/<h2>, <p>, <div>, <br>, <ul>/<ol>/<li>, <font size>.
+function renderHtmlBlockInPDF(b, pdf, html, x, baseFontSize, colorRgb, lineH, accentRgb) {
+  const maxW = CW - (x - ML)
+  const segs = []
+  let lineW = 0
+
+  const flushLine = (lh) => {
+    if (segs.length === 0) return
+    b.needsPage((lh || lineH) + 2)
+    let cx = x
+    for (const s of segs) {
+      const style = s.b && s.i ? 'bolditalic' : s.b ? 'bold' : s.i ? 'italic' : 'normal'
+      pdf.setFontSize(s.fs)
+      pdf.setFont('helvetica', style)
+      pdf.setTextColor(...(s.c || colorRgb))
+      pdf.text(s.t, cx, b.y)
+      if (s.u) {
+        pdf.setDrawColor(...(s.c || colorRgb))
+        pdf.setLineWidth(0.15)
+        pdf.line(cx, b.y + 0.6, cx + pdf.getTextWidth(s.t), b.y + 0.6)
+      }
+      cx += s.w
+    }
+    b.y += (lh || lineH)
+    segs.length = 0
+    lineW = 0
+  }
+
+  const addToken = (text, bold, italic, underline, fs, color) => {
+    if (!text) return
+    const style = bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'normal'
+    pdf.setFontSize(fs)
+    pdf.setFont('helvetica', style)
+    const w = pdf.getTextWidth(text)
+    if (lineW > 0 && lineW + w > maxW) flushLine()
+    segs.push({ t: text, b: bold, i: italic, u: underline, fs, c: color, w })
+    lineW += w
+  }
+
+  const FONT_SIZE_MAP = { '1': 6.5, '2': 8, '3': baseFontSize, '4': 11, '5': 14, '6': 18, '7': 24 }
+
+  const walk = (node, bold, italic, underline, fs, color) => {
+    if (node.nodeType === 3) {
+      const txt = node.nodeValue.replace(/ /g, ' ')
+      const parts = txt.split(/(\s+)/)
+      for (const part of parts) {
+        if (part) addToken(part, bold, italic, underline, fs, color)
+      }
+    } else if (node.nodeType === 1) {
+      const tag = node.tagName.toLowerCase()
+      const nb = bold || tag === 'strong' || tag === 'b'
+      const ni = italic || tag === 'em' || tag === 'i'
+      const nu = underline || tag === 'u'
+      let nfs = tag === 'font' ? (FONT_SIZE_MAP[node.getAttribute('size')] || fs) : fs
+      const nc = color
+
+      if (tag === 'br') {
+        flushLine()
+      } else if (tag === 'h1') {
+        if (segs.length > 0) flushLine(); b.sp(2)
+        for (const c of node.childNodes) walk(c, true, ni, nu, 13, [15, 23, 42])
+        flushLine(7); b.sp(1)
+      } else if (tag === 'h2') {
+        if (segs.length > 0) flushLine(); b.sp(1)
+        for (const c of node.childNodes) walk(c, true, ni, nu, 10.5, accentRgb || colorRgb)
+        flushLine(6); b.sp(0.5)
+      } else if (['h3', 'h4', 'h5', 'h6'].includes(tag)) {
+        if (segs.length > 0) flushLine()
+        for (const c of node.childNodes) walk(c, true, ni, nu, nfs, nc)
+        flushLine()
+      } else if (tag === 'li') {
+        flushLine()
+        addToken('•  ', true, false, false, nfs, accentRgb || colorRgb)
+        for (const c of node.childNodes) walk(c, nb, ni, nu, nfs, nc)
+        flushLine()
+      } else if (['p', 'div'].includes(tag)) {
+        if (segs.length > 0) flushLine()
+        for (const c of node.childNodes) walk(c, nb, ni, nu, nfs, nc)
+        if (segs.length > 0) flushLine()
+        else b.sp(lineH * 0.4)
+      } else if (tag === 'ul' || tag === 'ol') {
+        if (segs.length > 0) flushLine()
+        for (const c of node.childNodes) walk(c, nb, ni, nu, nfs, nc)
+      } else {
+        for (const c of node.childNodes) walk(c, nb, ni, nu, nfs, nc)
+      }
+    }
+  }
+
+  const parser = new DOMParser()
+  const doc = parser.parseFromString('<div>' + html + '</div>', 'text/html')
+  const container = doc.querySelector('div')
+  if (container) {
+    for (const c of container.childNodes) walk(c, false, false, false, baseFontSize, colorRgb)
+    flushLine()
   }
 }
 
@@ -303,43 +401,46 @@ export async function buildPDF(note, template, chartImages, t) {
 
     if (s.type === 'text' || s.type === 'notes') {
       const raw = s.content || ''
-      const content = raw.includes('<') ? htmlToPlainText(raw) : raw
-      if (!content.trim() && !s.label) continue
-      const lines = content.split('\n')
-      for (const line of lines) {
-        if (line.startsWith('# ')) {
-          b.needsPage(9); b.sp(1)
-          b.text(line.slice(2), ML, 13, 'bold', [15, 23, 42], 7)
-        } else if (line.startsWith('## ')) {
-          b.needsPage(7); b.sp(0.5)
-          b.text(line.slice(3), ML, 10.5, 'bold', [ar, ag, ab], 6)
-        } else if (line.startsWith('- [ ] ') || /^- \[[xX]\] /.test(line)) {
-          const checked = line[3] !== ' '
-          const txt = (checked ? '☑ ' : '☐ ') + line.slice(6)
-          pdf.setFontSize(9.5)
-          pdf.setFont('helvetica', 'normal')
-          pdf.setTextColor(checked ? 148 : 55, checked ? 163 : 65, checked ? 184 : 81)
-          const wl = pdf.splitTextToSize(txt, CW - 4)
-          b.needsPage(wl.length * 5 + 1)
-          pdf.text(wl, ML + 3, b.y)
-          b.y += wl.length * 5 + 1
-        } else if (line.startsWith('- ')) {
-          const bullet = line.slice(2)
-          const wl = pdf.splitTextToSize(bullet, CW - 7)
-          b.needsPage(wl.length * 5 + 1)
-          pdf.setFontSize(9.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(ar, ag, ab)
-          pdf.text('•', ML + 2, b.y)
-          pdf.setFont('helvetica', 'normal'); pdf.setTextColor(55, 65, 81)
-          pdf.text(wl, ML + 7, b.y)
-          b.y += wl.length * 5 + 1
-        } else if (line === '') {
-          b.y += 2.5
-        } else {
-          pdf.setFontSize(9.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(55, 65, 81)
-          const wl = pdf.splitTextToSize(line, CW)
-          b.needsPage(wl.length * 5 + 1)
-          pdf.text(wl, ML, b.y)
-          b.y += wl.length * 5 + 1
+      if (!raw.trim() && !s.label) continue
+      if (raw.includes('<')) {
+        renderHtmlBlockInPDF(b, pdf, raw, ML, 9.5, [55, 65, 81], 5, [ar, ag, ab])
+      } else {
+        const lines = raw.split('\n')
+        for (const line of lines) {
+          if (line.startsWith('# ')) {
+            b.needsPage(9); b.sp(1)
+            b.text(line.slice(2), ML, 13, 'bold', [15, 23, 42], 7)
+          } else if (line.startsWith('## ')) {
+            b.needsPage(7); b.sp(0.5)
+            b.text(line.slice(3), ML, 10.5, 'bold', [ar, ag, ab], 6)
+          } else if (line.startsWith('- [ ] ') || /^- \[[xX]\] /.test(line)) {
+            const checked = line[3] !== ' '
+            const txt = (checked ? '☑ ' : '☐ ') + line.slice(6)
+            pdf.setFontSize(9.5)
+            pdf.setFont('helvetica', 'normal')
+            pdf.setTextColor(checked ? 148 : 55, checked ? 163 : 65, checked ? 184 : 81)
+            const wl = pdf.splitTextToSize(txt, CW - 4)
+            b.needsPage(wl.length * 5 + 1)
+            pdf.text(wl, ML + 3, b.y)
+            b.y += wl.length * 5 + 1
+          } else if (line.startsWith('- ')) {
+            const bullet = line.slice(2)
+            const wl = pdf.splitTextToSize(bullet, CW - 7)
+            b.needsPage(wl.length * 5 + 1)
+            pdf.setFontSize(9.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(ar, ag, ab)
+            pdf.text('•', ML + 2, b.y)
+            pdf.setFont('helvetica', 'normal'); pdf.setTextColor(55, 65, 81)
+            pdf.text(wl, ML + 7, b.y)
+            b.y += wl.length * 5 + 1
+          } else if (line === '') {
+            b.y += 2.5
+          } else {
+            pdf.setFontSize(9.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(55, 65, 81)
+            const wl = pdf.splitTextToSize(line, CW)
+            b.needsPage(wl.length * 5 + 1)
+            pdf.text(wl, ML, b.y)
+            b.y += wl.length * 5 + 1
+          }
         }
       }
     }

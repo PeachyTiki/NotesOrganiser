@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { X, Plus, Users, Trash2, Pencil, Check, Copy, Mail } from 'lucide-react'
+import { X, Plus, Users, Trash2, Pencil, Check, Copy, Mail, Sparkles, ChevronDown, ChevronRight, Brain } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
@@ -65,7 +65,7 @@ export default function ContactsModal({ entity, onClose }) {
           const key = (p.name || '').toLowerCase().trim()
           if (!p.isSelf && p.enabled !== false && key && !seen.has(key)) {
             seen.add(key)
-            out.push({ name: p.name.trim(), position: p.role || '' })
+            out.push({ name: p.name.trim(), position: p.role || '', company: p.firm || '' })
           }
         })
       })
@@ -79,7 +79,7 @@ export default function ContactsModal({ entity, onClose }) {
       const key = src.name.toLowerCase().trim()
       if (!names.has(key)) {
         names.add(key)
-        added.push({ id: uuid(), name: src.name, position: src.position, email: '', phone: '', managerId: '' })
+        added.push({ id: uuid(), name: src.name, position: src.position, company: src.company || '', email: '', phone: '', managerId: '' })
       }
     })
     return added
@@ -95,11 +95,16 @@ export default function ContactsModal({ entity, onClose }) {
   const [activeTab, setActiveTab] = useState('contacts')
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [copySuccess, setCopySuccess] = useState(false)
+  const [promptCopied, setPromptCopied] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importText, setImportText] = useState('')
+  const [importError, setImportError] = useState('')
+  const [importSuccess, setImportSuccess] = useState('')
   const [activeDragId, setActiveDragId] = useState(null)
 
   // Person form state
   const [editingPerson, setEditingPerson] = useState(null)
-  const [personForm, setPersonForm] = useState({ name: '', position: '', email: '', phone: '', managerId: '', managerCustom: '' })
+  const [personForm, setPersonForm] = useState({ name: '', position: '', company: '', email: '', phone: '', managerId: '', managerCustom: '' })
   const [managerMode, setManagerMode] = useState('list')
   const nameInputRef = useRef(null)
 
@@ -152,6 +157,90 @@ export default function ContactsModal({ entity, onClose }) {
     })
   }
 
+  // Build & copy AI prompt for the mailing list
+  const copyMailingListPrompt = () => {
+    const getPersonGroupNames = (personId) => groups.filter((g) => g.memberIds.includes(personId)).map((g) => g.name)
+    const hasUnassigned = people.some((p) => !groups.some((g) => g.memberIds.includes(p.id)))
+    const missingWarnings = []
+    if (groups.length === 0) missingWarnings.push('No groups have been defined yet — please ask what groups or segments to use.')
+    else if (hasUnassigned) missingWarnings.push('Some contacts are not assigned to any group.')
+    if (people.some((p) => !p.email)) missingWarnings.push('Some contacts are missing email addresses.')
+    if (people.some((p) => !p.position)) missingWarnings.push('Some contacts are missing position/role.')
+    if (people.some((p) => !p.company)) missingWarnings.push('Some contacts are missing company/organisation.')
+
+    const prompt = {
+      _type: 'mailing_list_prompt',
+      organisation: entity.name,
+      instructions: missingWarnings.length > 0
+        ? 'Review the contact list below. IMPORTANT: collect ALL clarifying questions into a single message first, then wait for answers before generating any output.'
+        : 'Review the contact list below. All data looks complete — you may proceed to generate the updated JSON directly.',
+      missing_data_warnings: missingWarnings,
+      contacts: people.map((p) => ({
+        id: p.id,
+        name: p.name,
+        email: p.email || '',
+        position: p.position || '',
+        company: p.company || '',
+        phone: p.phone || '',
+        manager: getManagerName(p) || '',
+        groups: getPersonGroupNames(p.id),
+      })),
+      groups: groups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        color: g.color || '',
+        members: people.filter((p) => g.memberIds.includes(p.id)).map((p) => p.name),
+      })),
+      expected_output: {
+        description: 'Return the complete updated contact list as JSON wrapped in ```json ... ``` fences. Preserve all existing IDs.',
+        schema: {
+          people: [{ id: '(preserve)', name: '', email: '', position: '', company: '', phone: '', managerId: '' }],
+          groups: [{ id: '(preserve)', name: '', color: '#hex', memberIds: ['person-id'] }],
+        },
+      },
+    }
+    navigator.clipboard.writeText(JSON.stringify(prompt, null, 2)).then(() => {
+      setPromptCopied(true)
+      setImportOpen(true)
+      setTimeout(() => setPromptCopied(false), 2500)
+    })
+  }
+
+  // Import JSON response from AI
+  const handleImportJson = () => {
+    const stripped = importText.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+    try {
+      const parsed = JSON.parse(stripped)
+      if (!parsed.people || !Array.isArray(parsed.people)) { setImportError('JSON must have a "people" array.'); return }
+      const newPeople = parsed.people.map((p) => ({
+        id: p.id || uuid(),
+        name: p.name || '',
+        position: p.position || '',
+        company: p.company || '',
+        email: p.email || '',
+        phone: p.phone || '',
+        managerId: p.managerId || '',
+      }))
+      const newGroups = Array.isArray(parsed.groups)
+        ? parsed.groups.map((g) => ({
+            id: g.id || uuid(),
+            name: g.name || '',
+            color: g.color || GROUP_COLORS[0],
+            memberIds: Array.isArray(g.memberIds) ? g.memberIds.filter((id) => newPeople.some((p) => p.id === id)) : [],
+          }))
+        : groups
+      setPeople(newPeople)
+      setGroups(newGroups)
+      persist(newPeople, newGroups)
+      setImportText('')
+      setImportError('')
+      setImportSuccess(`Imported ${newPeople.length} contacts and ${newGroups.length} groups.`)
+      setTimeout(() => setImportSuccess(''), 4000)
+    } catch {
+      setImportError('Invalid JSON — check the response format.')
+    }
+  }
+
   // Drag-and-drop handler
   const handleDragStart = ({ active }) => setActiveDragId(active.id)
   const handleDragEnd = ({ active, over }) => {
@@ -173,7 +262,7 @@ export default function ContactsModal({ entity, onClose }) {
 
   // Person CRUD
   const startAddPerson = () => {
-    setPersonForm({ name: '', position: '', email: '', phone: '', managerId: '', managerCustom: '' })
+    setPersonForm({ name: '', position: '', company: '', email: '', phone: '', managerId: '', managerCustom: '' })
     setManagerMode('list')
     setEditingGroup(null)
     setEditingPerson('new')
@@ -184,6 +273,7 @@ export default function ContactsModal({ entity, onClose }) {
     setPersonForm({
       name: person.name,
       position: person.position || '',
+      company: person.company || '',
       email: person.email || '',
       phone: person.phone || '',
       managerId: inList ? person.managerId : '',
@@ -200,10 +290,10 @@ export default function ContactsModal({ entity, onClose }) {
     const managerId = managerMode === 'custom' ? personForm.managerCustom || '' : personForm.managerId || ''
     let newPeople
     if (editingPerson === 'new') {
-      newPeople = [...people, { id: uuid(), name: personForm.name.trim(), position: personForm.position, email: personForm.email, phone: personForm.phone, managerId }]
+      newPeople = [...people, { id: uuid(), name: personForm.name.trim(), position: personForm.position, company: personForm.company, email: personForm.email, phone: personForm.phone, managerId }]
     } else {
       newPeople = people.map((p) =>
-        p.id === editingPerson ? { ...p, name: personForm.name.trim(), position: personForm.position, email: personForm.email, phone: personForm.phone, managerId } : p
+        p.id === editingPerson ? { ...p, name: personForm.name.trim(), position: personForm.position, company: personForm.company, email: personForm.email, phone: personForm.phone, managerId } : p
       )
     }
     setPeople(newPeople)
@@ -309,7 +399,10 @@ export default function ContactsModal({ entity, onClose }) {
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Reports to: {getManagerName(person)}</p>
         )}
         {showEmail && (
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{person.email || <span className="italic">No email</span>}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+            {person.email || <span className="italic">No email</span>}
+            {person.company && <span className="ml-2 text-gray-300 dark:text-gray-600">· {person.company}</span>}
+          </p>
         )}
       </div>
       <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -337,6 +430,10 @@ export default function ContactsModal({ entity, onClose }) {
         <div>
           <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Position</label>
           <input className="input text-sm" placeholder="Job title" value={personForm.position} onChange={(e) => setPersonForm((f) => ({ ...f, position: e.target.value }))} />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Company</label>
+          <input className="input text-sm" placeholder="Organisation / company" value={personForm.company} onChange={(e) => setPersonForm((f) => ({ ...f, company: e.target.value }))} />
         </div>
         <div>
           <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Email</label>
@@ -652,12 +749,37 @@ export default function ContactsModal({ entity, onClose }) {
                   )}
                 </>
               )}
+
+              {/* Import JSON panel */}
+              {importOpen && (
+                <div className="border border-gray-100 dark:border-gray-700 rounded-xl p-4 space-y-3 bg-gray-50/50 dark:bg-gray-800/30">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Paste AI Response (JSON)</p>
+                  <textarea
+                    className="input text-xs font-mono resize-none w-full"
+                    rows={5}
+                    value={importText}
+                    onChange={(e) => setImportText(e.target.value)}
+                    placeholder={'Paste the JSON from your AI assistant here:\n{"people": [...], "groups": [...]}'}
+                    autoFocus
+                  />
+                  {importError && <p className="text-xs text-red-500 dark:text-red-400">{importError}</p>}
+                  {importSuccess && <p className="text-xs text-green-600 dark:text-green-400">{importSuccess}</p>}
+                  <div className="flex gap-2">
+                    <button onClick={handleImportJson} className="btn-primary flex items-center gap-1.5 text-xs py-1 px-3">
+                      <Brain size={12} /> Apply to Contacts
+                    </button>
+                    <button onClick={() => { setImportOpen(false); setImportText(''); setImportError('') }} className="btn-ghost text-xs py-1 px-3">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-100 dark:border-gray-700 px-6 py-4 flex items-center gap-3 shrink-0">
+        <div className="border-t border-gray-100 dark:border-gray-700 px-6 py-4 flex items-center gap-3 shrink-0 flex-wrap">
           {activeTab === 'mailingList' ? (
             <>
               <button className="btn-secondary text-xs py-1.5 shrink-0" onClick={selectAll}>Select All</button>
@@ -666,13 +788,30 @@ export default function ContactsModal({ entity, onClose }) {
                 {selectedCount > 0 ? `${selectedCount} selected · ${selectedWithEmail} with email` : 'None selected'}
               </span>
               <button
+                className="btn-secondary text-xs py-1.5 flex items-center gap-1.5 shrink-0"
+                onClick={() => { setImportOpen((v) => !v); setImportError('') }}
+                title="Import updated contacts from AI JSON response"
+              >
+                <Brain size={12} className="text-purple-500" />
+                {importOpen ? 'Close Import' : 'Import JSON'}
+                {importOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+              </button>
+              <button
+                className="btn-secondary text-xs py-1.5 flex items-center gap-1.5 shrink-0"
+                onClick={copyMailingListPrompt}
+                title="Copy AI prompt with your mailing list data"
+              >
+                {promptCopied ? <Check size={12} /> : <Sparkles size={12} />}
+                {promptCopied ? 'Copied!' : 'Copy AI Prompt'}
+              </button>
+              <button
                 className="btn-primary text-sm flex items-center gap-2 shrink-0"
                 onClick={copyEmails}
                 disabled={selectedWithEmail === 0}
                 style={{ opacity: selectedWithEmail === 0 ? 0.5 : 1, cursor: selectedWithEmail === 0 ? 'not-allowed' : 'pointer' }}
               >
                 {copySuccess ? <Check size={14} /> : <Copy size={14} />}
-                {copySuccess ? 'Copied!' : 'Copy Email List'}
+                {copySuccess ? 'Copied!' : 'Copy Emails'}
               </button>
             </>
           ) : (
