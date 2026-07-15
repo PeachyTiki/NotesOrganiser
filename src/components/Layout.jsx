@@ -11,7 +11,7 @@ const BASE_NAV = [
 ]
 
 export default function Layout({ children }) {
-  const { darkMode, activeSection, update, syncConfigs, settings, meetingNotes } = useApp()
+  const { darkMode, activeSection, update, guardedUpdate, syncConfigs, settings, meetingNotes } = useApp()
   const tasksEnabled = !!settings?.tasksEnabled
   const internalEnabled = !!settings?.internalNotesEnabled
 
@@ -81,7 +81,7 @@ export default function Layout({ children }) {
             {NAV.map(({ id, label, icon: Icon, overdue }) => (
               <button
                 key={id}
-                onClick={() => update({ activeSection: id })}
+                onClick={() => guardedUpdate({ activeSection: id })}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   activeSection === id
                     ? 'bg-accent-light dark:bg-accent-light text-accent'
@@ -101,7 +101,7 @@ export default function Layout({ children }) {
 
           <div className="flex items-center gap-1">
             <button
-              onClick={() => update({ activeSection: 'templates' })}
+              onClick={() => guardedUpdate({ activeSection: 'templates' })}
               className={`p-2 rounded-lg transition-colors ${activeSection === 'templates' ? 'bg-accent-light text-accent' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
               title="Templates"
             >

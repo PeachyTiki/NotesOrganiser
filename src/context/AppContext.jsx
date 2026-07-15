@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { hexToRgb, darkenHex, lightenHex } from '../utils/colorUtils'
 import { makeT, getSystemLanguage } from '../utils/i18n'
 import { renderNoteToPdfBuffer, arrayBufferToBase64 } from '../utils/export'
@@ -179,6 +179,15 @@ export function AppProvider({ children }) {
   }, [state.darkMode, state.settings.accentLight, state.settings.accentDark])
 
   const update = (patch) => setState((s) => ({ ...s, ...patch }))
+
+  // Lets a screen with unsaved edits (e.g. the note editor) intercept in-app
+  // navigation and prompt to save/discard before the underlying view unmounts.
+  const navGuardRef = useRef(null)
+  const registerNavGuard = (fn) => { navGuardRef.current = fn }
+  const guardedUpdate = (patch) => {
+    if (navGuardRef.current) { navGuardRef.current(() => update(patch)); return }
+    update(patch)
+  }
 
   const saveTemplate = (tpl) => {
     setState((s) => {
@@ -377,6 +386,8 @@ export function AppProvider({ children }) {
       value={{
         ...state,
         update,
+        guardedUpdate,
+        registerNavGuard,
         saveCustomer,
         deleteCustomer,
         saveTemplate,

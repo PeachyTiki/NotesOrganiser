@@ -140,7 +140,7 @@ function emptyNote(recurringMeeting, settings, customers) {
 
 
 export default function MeetingNoteEditor({ recurringMeetingId, existingNote, prefilledCustomer, onClose }) {
-  const { recurringMeetings, templates, saveMeetingNote, meetingNotes, settings, update, t, sectionPresets, saveSectionPreset, deleteSectionPreset, syncConfigs, syncFileMap, updateSyncFileMap, triggerNoteSync, customers } = useApp()
+  const { recurringMeetings, templates, saveMeetingNote, meetingNotes, settings, update, registerNavGuard, t, sectionPresets, saveSectionPreset, deleteSectionPreset, syncConfigs, syncFileMap, updateSyncFileMap, triggerNoteSync, customers } = useApp()
   const effectiveRecurringMeetingId = existingNote?.recurringMeetingId || recurringMeetingId
   const recurringMeeting = recurringMeetings.find((m) => m.id === effectiveRecurringMeetingId)
 
@@ -192,6 +192,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
   const [dirty, setDirty] = useState(false)
   const [showDiscardModal, setShowDiscardModal] = useState(false)
   const [lastDraftSave, setLastDraftSave] = useState(null)
+  const pendingNavRef = useRef(null)
   const [notesOverlayOpen, setNotesOverlayOpen] = useState(false)
   const [openNotesToken, setOpenNotesToken] = useState(null)
 
@@ -344,6 +345,28 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
+  // Let app-level navigation (top nav bar) prompt to save/discard instead of
+  // silently unmounting this editor and losing in-progress edits.
+  useEffect(() => {
+    registerNavGuard((next) => {
+      if (!dirty) { next(); return }
+      pendingNavRef.current = next
+      setShowDiscardModal(true)
+    })
+    return () => registerNavGuard(null)
+  }, [dirty]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Warn on closing/reloading the whole app window with unsaved edits
+  useEffect(() => {
+    const handler = (e) => {
+      if (!dirty) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirty])
+
   // Auto-save draft every 30s to localStorage
   useEffect(() => {
     const id = setInterval(() => {
@@ -431,7 +454,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
   }
 
   const handleClose = () => {
-    if (dirty) { setShowDiscardModal(true) } else { onClose() }
+    if (dirty) { pendingNavRef.current = onClose; setShowDiscardModal(true) } else { onClose() }
   }
 
   const doExport = async () => {
@@ -1135,17 +1158,37 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
           <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Unsaved Changes</h3>
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-5">
-              Your changes have not been saved. Are you sure you would like to discard your changes?
+              Your changes have not been saved. Save as a draft to keep them, or leave without saving.
             </p>
-            <div className="flex gap-2 justify-end">
-              <button className="btn-ghost text-sm" onClick={() => setShowDiscardModal(false)}>
-                No, keep editing
+            <div className="flex gap-2 justify-end flex-wrap">
+              <button
+                className="btn-ghost text-sm"
+                onClick={() => { setShowDiscardModal(false); pendingNavRef.current = null }}
+              >
+                Cancel
               </button>
               <button
                 className="text-sm px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium transition-colors"
-                onClick={() => { setShowDiscardModal(false); onClose() }}
+                onClick={() => {
+                  setShowDiscardModal(false)
+                  const next = pendingNavRef.current || onClose
+                  pendingNavRef.current = null
+                  next()
+                }}
               >
-                Yes, discard
+                Leave without saving
+              </button>
+              <button
+                className="btn-primary text-sm"
+                onClick={() => {
+                  handleSaveDraft()
+                  setShowDiscardModal(false)
+                  const next = pendingNavRef.current || onClose
+                  pendingNavRef.current = null
+                  next()
+                }}
+              >
+                Save as draft
               </button>
             </div>
           </div>
