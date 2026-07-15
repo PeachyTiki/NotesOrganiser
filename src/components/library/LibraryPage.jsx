@@ -165,7 +165,7 @@ export default function LibraryPage() {
   const [filterEventType, setFilterEventType] = useState('')
   const [filterPendingActions, setFilterPendingActions] = useState(false)
   const [filterHasTopics, setFilterHasTopics] = useState(false)
-  const [filterMode, setFilterMode] = useState('all')
+  const [filterModes, setFilterModes] = useState([])
   const [filterDrafts, setFilterDrafts] = useState(false)
   const [openCustomers, setOpenCustomers] = useState({})
   const [openSubgroups, setOpenSubgroups] = useState({})
@@ -250,14 +250,17 @@ export default function LibraryPage() {
     if (filterHasTopics) list = list.filter((n) =>
       (n.sections || []).some((s) => s.type === 'topics' && (s.items || []).some((i) => i.topic))
     )
-    if (internalNotesEnabled && filterMode !== 'all') {
-      if (filterMode === 'standard') list = list.filter((n) => n.modes?.standard !== false)
-      if (filterMode === 'internal') list = list.filter((n) => !!n.modes?.internal)
+    if (internalNotesEnabled && filterModes.length > 0) {
+      list = list.filter((n) => {
+        const hasStandard = n.modes?.standard !== false
+        const hasInternal = !!n.modes?.internal
+        return (filterModes.includes('standard') && hasStandard) || (filterModes.includes('internal') && hasInternal)
+      })
     }
     // Drafts filter: show only drafts when active, otherwise exclude drafts
     list = filterDrafts ? list.filter((n) => n.isDraft) : list.filter((n) => !n.isDraft)
     return list
-  }, [meetingNotes, search, dateFrom, dateTo, filterCustomer, filterEventType, filterPendingActions, filterHasTopics, filterMode, filterDrafts, internalNotesEnabled, rmMap])
+  }, [meetingNotes, search, dateFrom, dateTo, filterCustomer, filterEventType, filterPendingActions, filterHasTopics, filterModes, filterDrafts, internalNotesEnabled, rmMap])
 
   // Build 2-level hierarchy: Customer > (RecurringMeeting | One-off Notes)
   const libraryGroups = useMemo(() => {
@@ -319,13 +322,15 @@ export default function LibraryPage() {
       })
   }, [filteredNotes, rmMap, sortBy, t])
 
-  const hasFilters = search || dateFrom || dateTo || filterCustomer || filterEventType || filterPendingActions || filterHasTopics || filterMode !== 'all' || filterDrafts
+  const hasFilters = search || dateFrom || dateTo || filterCustomer || filterEventType || filterPendingActions || filterHasTopics || filterModes.length > 0 || filterDrafts
   const clearFilters = () => {
     setSearch(''); setDateFrom(''); setDateTo('')
     setFilterCustomer(''); setFilterEventType('')
     setFilterPendingActions(false); setFilterHasTopics(false)
-    setFilterMode('all'); setFilterDrafts(false)
+    setFilterModes([]); setFilterDrafts(false)
   }
+  const toggleFilterMode = (mode) =>
+    setFilterModes((cur) => (cur.includes(mode) ? cur.filter((m) => m !== mode) : [...cur, mode]))
 
   const toggleCustomer = (name) => setOpenCustomers((s) => ({ ...s, [name]: !s[name] }))
   const toggleSubgroup = (key) => setOpenSubgroups((s) => ({ ...s, [key]: !s[key] }))
@@ -494,17 +499,27 @@ export default function LibraryPage() {
           </button>
           {internalNotesEnabled && (
             <>
-              {['all', 'standard', 'internal'].map((m) => (
+              <button
+                onClick={() => setFilterModes([])}
+                className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                  filterModes.length === 0
+                    ? 'bg-accent-light dark:bg-accent-light border-accent/30 text-accent'
+                    : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
+                }`}
+              >
+                All
+              </button>
+              {['standard', 'internal'].map((m) => (
                 <button
                   key={m}
-                  onClick={() => setFilterMode(m)}
+                  onClick={() => toggleFilterMode(m)}
                   className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
-                    filterMode === m
+                    filterModes.includes(m)
                       ? 'bg-accent-light dark:bg-accent-light border-accent/30 text-accent'
                       : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
                   }`}
                 >
-                  {m === 'all' ? 'All modes' : m === 'standard' ? 'Standard only' : 'Internal only'}
+                  {m === 'standard' ? 'Standard' : 'Internal'}
                 </button>
               ))}
             </>
@@ -615,7 +630,7 @@ export default function LibraryPage() {
                           className={!isLast ? 'border-b border-gray-100 dark:border-gray-700' : ''}
                         >
                           {/* Subgroup header */}
-                          <div className="flex items-center bg-gray-50/50 dark:bg-gray-900/20">
+                          <div className="flex items-center bg-white/30 dark:bg-gray-900/20 backdrop-blur-md">
                             <button
                               onClick={() => toggleSubgroup(sg.key)}
                               className="flex-1 flex items-center gap-3 pl-8 pr-3 py-2.5 hover:bg-gray-100/50 dark:hover:bg-gray-800/20 transition-colors text-left min-w-0"
@@ -898,7 +913,7 @@ function NoteRow({ note, onView, onEdit, onDelete, internalNotesEnabled = false 
               {internalNotesEnabled && (
                 <div className="flex items-center gap-1 shrink-0">
                   {note.modes?.standard !== false && (
-                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400" title="Has standard note">S</span>
+                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-gray-100/60 dark:bg-gray-700/50 backdrop-blur-sm text-gray-500 dark:text-gray-400" title="Has standard note">S</span>
                   )}
                   {note.modes?.internal && (
                     <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800" title="Has internal note">I</span>
@@ -911,7 +926,7 @@ function NoteRow({ note, onView, onEdit, onDelete, internalNotesEnabled = false 
                   className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${
                     actionsOpen
                       ? 'bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400'
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-amber-50 dark:hover:bg-amber-950 hover:text-amber-600'
+      : 'bg-gray-100/60 dark:bg-gray-800/50 backdrop-blur-sm text-gray-500 hover:bg-amber-50 dark:hover:bg-amber-950 hover:text-amber-600'
                   }`}
                   title="Toggle action items"
                 >

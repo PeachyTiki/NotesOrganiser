@@ -55,11 +55,12 @@ export default function Layout({ children }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex flex-col relative isolate">
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 via-accent-light/30 to-gray-200 dark:from-gray-950 dark:via-gray-900 dark:to-black flex flex-col relative isolate">
       {/* Ambient background blobs — give the glass panels something to catch light from */}
       <div className="pointer-events-none fixed -z-10 inset-0 overflow-hidden">
-        <div className="absolute -top-32 -left-24 w-96 h-96 rounded-full bg-accent/10 blur-3xl" />
-        <div className="absolute top-1/3 -right-32 w-[28rem] h-[28rem] rounded-full bg-accent/5 blur-3xl" />
+        <div className="absolute -top-32 -left-24 w-[30rem] h-[30rem] rounded-full bg-accent/20 blur-3xl" />
+        <div className="absolute top-1/3 -right-32 w-[32rem] h-[32rem] rounded-full bg-accent/10 blur-3xl" />
+        <div className="absolute -bottom-40 left-1/3 w-[26rem] h-[26rem] rounded-full bg-accent/10 blur-3xl" />
       </div>
 
       {/* Top bar */}

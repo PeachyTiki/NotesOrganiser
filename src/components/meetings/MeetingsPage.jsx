@@ -335,7 +335,7 @@ export default function MeetingsPage() {
   const hasContent = recurringMeetings.length > 0 || customers.length > 0
 
   // Helper: render meetings grid for an entity
-  const renderMeetingsGrid = (entityId, entityName) => {
+  const renderMeetingsGrid = (entityId, entityName, allowAddSub = false) => {
     const meetings = sortAndFilter(meetingsByEntityId[entityId] || [])
     return (
       <>
@@ -378,7 +378,38 @@ export default function MeetingsPage() {
           >
             <FileEdit size={12} /> One-off Note
           </button>
+          {allowAddSub && (
+            <button
+              onClick={() => { setAddingSubOf(entityId); setNewSubName('') }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-purple-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-950 transition-colors"
+            >
+              <Plus size={12} /> Sub-Entity
+            </button>
+          )}
         </div>
+
+        {allowAddSub && addingSubOf === entityId && (
+          <div className="mt-2 flex gap-2 items-center p-2 bg-white/40 dark:bg-gray-800/30 backdrop-blur-md rounded-lg">
+            <input
+              ref={newSubInputRef}
+              className="input flex-1 text-sm"
+              placeholder="New sub-entity name…"
+              value={newSubName}
+              onChange={(e) => setNewSubName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddSub(entityId)
+                if (e.key === 'Escape') { setAddingSubOf(null); setNewSubName('') }
+              }}
+            />
+            <button className="btn-primary text-sm py-1.5" onClick={() => handleAddSub(entityId)}>Add</button>
+            <button
+              className="btn-ghost text-sm py-1.5"
+              onClick={() => { setAddingSubOf(null); setNewSubName('') }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
       </>
     )
   }
@@ -400,51 +431,7 @@ export default function MeetingsPage() {
     const folderIconClass = `shrink-0${folderColor ? '' : ' text-accent'}`
 
     return (
-      <div className={`flex items-center gap-2 px-4 py-3 ${isSubEntity ? 'bg-gray-50/50 dark:bg-gray-800/30' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
-        <button
-          onClick={() => toggleCustomer(entity.id)}
-          className="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0"
-        >
-          {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-        </button>
-        {isOpen
-          ? <FolderOpen size={16} className={folderIconClass} style={folderStyle} />
-          : <Folder size={16} className={folderIconClass} style={folderStyle} />
-        }
-
-        {/* Type badge */}
-        <button
-          onClick={() => toggleEntityType(entity)}
-          className="shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded-full border transition-colors bg-accent/10 border-accent/30 text-accent hover:bg-accent/20"
-          title="Click to toggle type"
-        >
-          {typeBadge}
-        </button>
-
-        {/* Emoji */}
-        {editingEmojiFor === entity.id ? (
-          <input
-            ref={emojiInputRef}
-            className="input text-sm py-0.5 w-16 text-center shrink-0"
-            value={emojiVal}
-            onChange={(e) => setEmojiVal(e.target.value)}
-            onBlur={() => commitEmoji(entity)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitEmoji(entity)
-              if (e.key === 'Escape') setEditingEmojiFor(null)
-            }}
-            placeholder="😀"
-          />
-        ) : (
-          <button
-            onClick={() => startEditEmoji(entity)}
-            className="shrink-0 text-base leading-none hover:opacity-70 transition-opacity"
-            title="Click to edit emoji"
-          >
-            {entity.emoji || <span className="text-gray-300 dark:text-gray-600 text-xs">+</span>}
-          </button>
-        )}
-
+      <div className={`flex items-center gap-2 px-4 py-3 ${isSubEntity ? 'bg-white/30 dark:bg-gray-800/20 backdrop-blur-md' : 'bg-white/40 dark:bg-gray-800/30 backdrop-blur-md'}`}>
         {renamingId === entity.id ? (
           <>
             <input
@@ -467,12 +454,52 @@ export default function MeetingsPage() {
           </>
         ) : (
           <>
+            {/* Whole disclosure area — chevron, folder icon, and name all toggle open/closed together */}
             <button
-              className="flex-1 text-left font-semibold text-gray-900 dark:text-white text-sm min-w-0 truncate"
               onClick={() => toggleCustomer(entity.id)}
+              className="flex-1 flex items-center gap-2 min-w-0 text-left -m-1 p-1 rounded-lg hover:bg-white/40 dark:hover:bg-gray-700/30 transition-colors"
             >
-              {entity.name}
+              {isOpen ? <ChevronDown size={15} className="text-gray-400 shrink-0" /> : <ChevronRight size={15} className="text-gray-400 shrink-0" />}
+              {isOpen
+                ? <FolderOpen size={16} className={folderIconClass} style={folderStyle} />
+                : <Folder size={16} className={folderIconClass} style={folderStyle} />
+              }
+              <span className="font-semibold text-gray-900 dark:text-white text-sm min-w-0 truncate">{entity.name}</span>
             </button>
+
+            {/* Type badge */}
+            <button
+              onClick={() => toggleEntityType(entity)}
+              className="shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded-full border transition-colors bg-accent/10 border-accent/30 text-accent hover:bg-accent/20"
+              title="Click to toggle type"
+            >
+              {typeBadge}
+            </button>
+
+            {/* Emoji */}
+            {editingEmojiFor === entity.id ? (
+              <input
+                ref={emojiInputRef}
+                className="input text-sm py-0.5 w-16 text-center shrink-0"
+                value={emojiVal}
+                onChange={(e) => setEmojiVal(e.target.value)}
+                onBlur={() => commitEmoji(entity)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitEmoji(entity)
+                  if (e.key === 'Escape') setEditingEmojiFor(null)
+                }}
+                placeholder="😀"
+              />
+            ) : (
+              <button
+                onClick={() => startEditEmoji(entity)}
+                className="shrink-0 text-base leading-none hover:opacity-70 transition-opacity"
+                title="Click to edit emoji"
+              >
+                {entity.emoji || <span className="text-gray-300 dark:text-gray-600 text-xs">+</span>}
+              </button>
+            )}
+
             <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
               {totalCount} meeting{totalCount !== 1 ? 's' : ''}
             </span>
@@ -483,15 +510,6 @@ export default function MeetingsPage() {
                 title={t('masterNotes')}
               >
                 <BookMarked size={13} />
-              </button>
-            )}
-            {!isSubEntity && (
-              <button
-                onClick={() => { setAddingSubOf(entity.id); setNewSubName('') }}
-                className="p-1.5 text-gray-400 hover:text-purple-500 transition-colors shrink-0"
-                title="Add sub-entity"
-              >
-                <span className="text-xs font-bold">⊕</span>
               </button>
             )}
             <button
@@ -731,32 +749,8 @@ export default function MeetingsPage() {
                         </div>
                       )}
 
-                      {/* Add sub-entity inline form */}
-                      {addingSubOf === entity.id && (
-                        <div className="flex gap-2 items-center ml-4 p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                          <input
-                            ref={newSubInputRef}
-                            className="input flex-1 text-sm"
-                            placeholder={`New sub-${entity.type || 'customer'} name…`}
-                            value={newSubName}
-                            onChange={(e) => setNewSubName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleAddSub(entity.id)
-                              if (e.key === 'Escape') { setAddingSubOf(null); setNewSubName('') }
-                            }}
-                          />
-                          <button className="btn-primary text-sm py-1.5" onClick={() => handleAddSub(entity.id)}>Add</button>
-                          <button
-                            className="btn-ghost text-sm py-1.5"
-                            onClick={() => { setAddingSubOf(null); setNewSubName('') }}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      )}
-
                       {/* Direct meetings */}
-                      {renderMeetingsGrid(entity.id, entity.name)}
+                      {renderMeetingsGrid(entity.id, entity.name, true)}
                     </div>
                   )}
                 </div>
@@ -765,22 +759,17 @@ export default function MeetingsPage() {
 
             {/* Misc Meetings */}
             <div className="card overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 dark:bg-gray-800/50">
+              <div className="flex items-center gap-2 px-4 py-3 bg-white/40 dark:bg-gray-800/30 backdrop-blur-md">
                 <button
                   onClick={() => toggleCustomer('__misc__')}
-                  className="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0"
+                  className="flex-1 flex items-center gap-2 min-w-0 text-left -m-1 p-1 rounded-lg hover:bg-white/40 dark:hover:bg-gray-700/30 transition-colors"
                 >
-                  {openCustomers['__misc__'] ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                </button>
-                {openCustomers['__misc__']
-                  ? <FolderOpen size={16} className="text-gray-400 shrink-0" />
-                  : <Folder size={16} className="text-gray-400 shrink-0" />
-                }
-                <button
-                  className="flex-1 text-left font-semibold text-gray-500 dark:text-gray-400 text-sm"
-                  onClick={() => toggleCustomer('__misc__')}
-                >
-                  Misc Meetings
+                  {openCustomers['__misc__'] ? <ChevronDown size={15} className="text-gray-400 shrink-0" /> : <ChevronRight size={15} className="text-gray-400 shrink-0" />}
+                  {openCustomers['__misc__']
+                    ? <FolderOpen size={16} className="text-gray-400 shrink-0" />
+                    : <Folder size={16} className="text-gray-400 shrink-0" />
+                  }
+                  <span className="font-semibold text-gray-500 dark:text-gray-400 text-sm">Misc Meetings</span>
                 </button>
                 <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
                   {miscMeetings.length} meeting{miscMeetings.length !== 1 ? 's' : ''}
@@ -952,7 +941,7 @@ function RecurringMeetingCard({ meeting, isToday, noteCount, draftNotes = [], sh
           {enabledParticipants.slice(0, 4).map((p) => (
             <span
               key={p.id}
-              className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full"
+              className="text-xs bg-gray-100/60 dark:bg-gray-700/50 backdrop-blur-sm text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full"
             >
               {p.name}
             </span>
