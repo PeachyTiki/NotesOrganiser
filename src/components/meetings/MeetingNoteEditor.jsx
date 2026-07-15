@@ -701,7 +701,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
       </div>
 
       {/* Floating bottom-centre panel toggles */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full shadow-lg overflow-hidden select-none">
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center dropdown-panel rounded-full overflow-hidden select-none">
         <button
           onClick={() => setFormCollapsed((v) => !v)}
           className={`px-5 py-2 text-xs font-medium transition-colors ${
@@ -943,7 +943,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
                   <LayoutTemplate size={12} /> Presets
                 </button>
                 {presetsOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-30 py-1">
+                  <div className="absolute right-0 top-full mt-1 w-52 dropdown-panel rounded-xl z-30 py-1">
                     <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
                       {savingPreset ? (
                         <div>
@@ -1155,7 +1155,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
       {showDiscardModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowDiscardModal(false)} />
-          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4">
+          <div className="relative bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Unsaved Changes</h3>
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-5">
               Your changes have not been saved. Save as a draft to keep them, or leave without saving.

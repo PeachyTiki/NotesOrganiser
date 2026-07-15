@@ -25,29 +25,57 @@
   * {
     @apply box-border;
   }
+
+  /* Smooth cross-fade between light and dark mode for every element,
+     not just the ones using the shared classes below. */
+  *, *::before, *::after {
+    transition-property: background-color, border-color, color, box-shadow;
+    transition-duration: 220ms;
+    transition-timing-function: ease;
+  }
+
+  /* Bouncy tap feedback on every native button in the app. */
+  button:not(:disabled) {
+    transition-property: background-color, border-color, color, box-shadow, transform;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  button:not(:disabled):active {
+    transform: scale(0.95);
+  }
+
+  /* Glassy base for every native dropdown. */
+  select {
+    @apply backdrop-blur-md;
+  }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-accent text-white px-4 py-2 rounded-lg font-medium hover:bg-accent-dark transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply bg-accent/90 backdrop-blur-md text-white px-4 py-2 rounded-lg font-medium shadow-md shadow-accent/20 hover:bg-accent-dark/90 hover:shadow-lg hover:shadow-accent/30 active:scale-95 transition-all duration-150 ease-bounce disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
   }
   .btn-secondary {
-    @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150;
+    @apply bg-white/70 dark:bg-gray-800/60 backdrop-blur-md border border-white/60 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg font-medium shadow-sm hover:bg-white/90 dark:hover:bg-gray-700/70 hover:shadow-md active:scale-95 transition-all duration-150 ease-bounce;
   }
   .btn-ghost {
-    @apply text-gray-600 dark:text-gray-400 px-3 py-2 rounded-lg font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150;
+    @apply text-gray-600 dark:text-gray-400 px-3 py-2 rounded-lg font-medium hover:bg-gray-100/80 dark:hover:bg-gray-800/80 backdrop-blur-sm active:scale-95 transition-all duration-150 ease-bounce;
   }
   .input {
-    @apply w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder-gray-400 dark:placeholder-gray-500 text-sm;
+    @apply w-full px-3 py-2 border border-gray-200/70 dark:border-gray-600/60 rounded-lg bg-white/70 dark:bg-gray-800/60 backdrop-blur-md text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent focus:bg-white dark:focus:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 text-sm transition-all duration-150;
   }
   .label {
     @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1;
   }
   .card {
-    @apply bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm;
+    @apply bg-white/70 dark:bg-gray-800/50 backdrop-blur-xl rounded-xl border border-white/60 dark:border-gray-700/50 shadow-md shadow-black/5;
   }
   .section-title {
     @apply text-lg font-semibold text-gray-900 dark:text-gray-100;
+  }
+
+  /* Glassy dropdown / popover panel — used for menus that float above content */
+  .dropdown-panel {
+    @apply bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border border-white/60 dark:border-gray-700/60 shadow-xl;
   }
 }
 

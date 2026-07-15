@@ -354,7 +354,7 @@ export default function SectionList({ sections, onChange, t, note, meetingNotes,
         </button>
 
         {addOpen && (
-          <div className="absolute top-full mt-1 left-0 right-0 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-lg z-10 p-2 grid grid-cols-4 gap-2">
+          <div className="absolute top-full mt-1 left-0 right-0 dropdown-panel rounded-xl z-10 p-2 grid grid-cols-4 gap-2">
             {Object.entries(TYPE_META).filter(([type]) => type !== 'tasks' || tasksEnabled).map(([type, meta]) => {
               const Icon = meta.icon
               const label = meta.label === 'Topics' ? t('topics') : meta.label

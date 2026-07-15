@@ -85,7 +85,7 @@ function BulkExportButton({ notes, exportGroups, zipFilename, templates, level, 
       {open && (
         <div
           style={{ position: 'fixed', top: dropPos.top, right: dropPos.right, zIndex: 200 }}
-          className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl py-1 min-w-44"
+          className="dropdown-panel rounded-lg py-1 min-w-44"
         >
           <div className="px-3 py-1 text-xs text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-700 mb-1">
             Download as ZIP
@@ -768,7 +768,7 @@ function NoteExportDropdown({ note }) {
       {open && (
         <div
           style={{ position: 'fixed', top: dropPos.top, right: dropPos.right, zIndex: 200 }}
-          className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl py-1 min-w-36"
+          className="dropdown-panel rounded-lg py-1 min-w-36"
         >
           <button onClick={(e) => run(e, 'pdf')} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2">
             <FileDown size={11} className="text-accent" /> PDF

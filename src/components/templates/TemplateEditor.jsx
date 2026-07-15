@@ -118,7 +118,7 @@ function FontPicker({ value, onChange }) {
       </button>
 
       {open && (
-        <div className="absolute z-30 top-full mt-1 left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl overflow-hidden">
+        <div className="absolute z-30 top-full mt-1 left-0 right-0 dropdown-panel rounded-lg overflow-hidden">
           <div className="max-h-64 overflow-y-auto">
             {FONTS.map((font) => (
               <button

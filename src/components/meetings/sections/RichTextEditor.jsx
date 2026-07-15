@@ -165,7 +165,7 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
           {bulletOpen && (
             <div
               data-bm="1"
-              className="absolute top-full left-0 mt-0.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg z-50 py-1 min-w-[7rem]"
+              className="absolute top-full left-0 mt-0.5 dropdown-panel rounded-md z-50 py-1 min-w-[7rem]"
             >
               {BULLETS.map(({ label, style }) => (
                 <button

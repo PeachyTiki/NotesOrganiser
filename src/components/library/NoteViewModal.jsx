@@ -116,9 +116,9 @@ export default function NoteViewModal({ note, onEdit, onClose }) {
     <div className="fixed inset-0 z-50 flex flex-col">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative z-10 m-4 md:m-6 flex-1 flex flex-col bg-gray-100 dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative z-10 m-4 md:m-6 flex-1 flex flex-col bg-gray-100/90 dark:bg-gray-900/90 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-3 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 shrink-0">
+        <div className="flex items-center gap-3 px-5 py-3 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-700 shrink-0">
 
           {/* Prev / title / next */}
           <div className="flex items-center gap-1 min-w-0 flex-1">
@@ -245,7 +245,7 @@ export default function NoteViewModal({ note, onEdit, onClose }) {
         </div>
 
         {/* Bottom-centre floating bar: view mode toggle + zoom */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full shadow-lg overflow-hidden select-none">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center dropdown-panel rounded-full overflow-hidden select-none">
           {bothExist && (
             <>
               <button

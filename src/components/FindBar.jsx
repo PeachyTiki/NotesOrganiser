@@ -64,7 +64,7 @@ export default function FindBar() {
   if (!open) return null
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-2xl px-3 py-2">
+    <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-1.5 dropdown-panel rounded-xl px-3 py-2">
       <Search size={14} className="text-gray-400 shrink-0" />
       <input
         ref={inputRef}
