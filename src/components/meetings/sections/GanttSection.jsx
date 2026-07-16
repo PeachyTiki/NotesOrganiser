@@ -370,7 +370,7 @@ export default function GanttSection({ section, onChange }) {
           onClick={() => onChange({ showDescriptions: !showDescriptions })}
           className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
             showDescriptions
-              ? 'bg-accent text-white border-accent'
+              ? 'bg-accent text-[color:var(--accent-contrast)] border-accent'
               : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-accent hover:text-accent'
           }`}
         >
@@ -465,13 +465,13 @@ export default function GanttSection({ section, onChange }) {
                 <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-xs shrink-0">
                   <button
                     onClick={() => setEndMode(row.id, 'date')}
-                    className={`px-2 py-1 transition-colors ${endMode === 'date' ? 'bg-accent text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                    className={`px-2 py-1 transition-colors ${endMode === 'date' ? 'bg-accent text-[color:var(--accent-contrast)]' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                   >
                     End date
                   </button>
                   <button
                     onClick={() => setEndMode(row.id, 'workdays')}
-                    className={`px-2 py-1 transition-colors ${endMode === 'workdays' ? 'bg-accent text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                    className={`px-2 py-1 transition-colors ${endMode === 'workdays' ? 'bg-accent text-[color:var(--accent-contrast)]' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                   >
                     Working days
                   </button>

@@ -152,7 +152,7 @@ export function AppProvider({ children }) {
     const hex = state.darkMode
       ? (state.settings.accentDark || DEFAULT_ACCENT_DARK)
       : (state.settings.accentLight || DEFAULT_ACCENT_LIGHT)
-    applyAccentVars(hex)
+    applyAccentVars(hex, state.darkMode)
   }, [state.darkMode, state.settings.accentLight, state.settings.accentDark])
 
   // Mirror the full app state out to the main process so any open floating

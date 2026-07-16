@@ -20,7 +20,7 @@ export function useRemoteAppState() {
     const hex = remoteState.darkMode
       ? (remoteState.settings?.accentDark || DEFAULT_ACCENT_DARK)
       : (remoteState.settings?.accentLight || DEFAULT_ACCENT_LIGHT)
-    applyAccentVars(hex)
+    applyAccentVars(hex, !!remoteState.darkMode)
   }, [remoteState])
 
   return remoteState

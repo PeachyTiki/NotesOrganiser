@@ -12,6 +12,11 @@
     --accent-light-rgb: 255, 229, 229;
     --accent-muted: #ff6666;
     --accent-muted-rgb: 255, 102, 102;
+    /* Whichever of black/white actually contrasts against --accent — kept in
+       sync by applyAccentVars() so text painted directly on a solid accent
+       fill (buttons, active pills) stays readable no matter what colour or
+       theme is active. */
+    --accent-contrast: #ffffff;
   }
 
   .dark {
@@ -46,10 +51,39 @@
   button:not(:disabled):active {
     transform: scale(0.95);
   }
+  /* A little lift on hover instead of a flat colour swap being the only cue. */
+  button:not(:disabled):hover {
+    transform: translateY(-1px) scale(1.015);
+  }
 
   /* Glassy base for every native dropdown. */
   select {
     @apply backdrop-blur-md;
+  }
+
+  /* Cursor-following glassy shine on every button and filter (select). JS in
+     main.jsx tracks the pointer and writes --mx/--my (in px, relative to the
+     hovered element) onto that element; this pseudo-element turns that into a
+     soft highlight that moves with the cursor, like light catching liquid
+     glass. Sits on top of whatever hover:bg-* a component already has. */
+  button:not(:disabled), select {
+    position: relative;
+    overflow: hidden;
+  }
+  button:not(:disabled)::after, select::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(120px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, 0.55), transparent 70%);
+    transition: opacity 200ms ease;
+  }
+  .dark button:not(:disabled)::after, .dark select::after {
+    background: radial-gradient(120px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, 0.16), transparent 70%);
+  }
+  button:not(:disabled):hover::after, select:hover::after {
+    opacity: 1;
   }
 }
 
@@ -63,7 +97,7 @@
      `shadow-*` classes together would just let the last one win instead of
      layering, which is why these aren't split into a reusable shadow class. */
   .btn-primary {
-    @apply bg-accent/85 backdrop-blur-xl backdrop-saturate-150 text-white px-4 py-2 rounded-lg font-medium shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),0_10px_25px_-5px_rgba(var(--accent-rgb),0.45)] hover:bg-accent-dark/90 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),0_14px_30px_-6px_rgba(var(--accent-rgb),0.55)] active:scale-95 transition-all duration-150 ease-bounce disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+    @apply bg-accent/85 backdrop-blur-xl backdrop-saturate-150 text-[color:var(--accent-contrast)] px-4 py-2 rounded-lg font-medium shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),0_10px_25px_-5px_rgba(var(--accent-rgb),0.45)] hover:bg-accent-dark/90 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),0_14px_30px_-6px_rgba(var(--accent-rgb),0.55)] active:scale-95 transition-all duration-150 ease-bounce disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
   }
   .btn-secondary {
     @apply bg-white/50 dark:bg-gray-900/75 backdrop-blur-xl backdrop-saturate-150 dark:backdrop-saturate-100 border border-white/70 dark:border-white/10 text-gray-700 dark:text-gray-100 px-4 py-2 rounded-lg font-medium shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] hover:bg-white/70 dark:hover:bg-gray-800/85 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55),0_4px_14px_-2px_rgba(0,0,0,0.15)] active:scale-95 transition-all duration-150 ease-bounce;

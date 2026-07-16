@@ -684,7 +684,7 @@ export default function MeetingsPage() {
                   onClick={() => setTypeFilter(f)}
                   className={`text-xs font-medium px-3 py-1 rounded-full border transition-colors capitalize ${
                     typeFilter === f
-                      ? 'bg-accent text-white border-accent'
+                      ? 'bg-accent text-[color:var(--accent-contrast)] border-accent'
                       : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-accent hover:text-accent'
                   }`}
                 >
@@ -908,7 +908,7 @@ function RecurringMeetingCard({ meeting, isToday, noteCount, draftNotes = [], sh
               {meeting.name}
             </h3>
             {isToday && (
-              <span className="text-xs bg-accent text-white px-2 py-0.5 rounded-full font-semibold shrink-0">
+              <span className="text-xs bg-accent text-[color:var(--accent-contrast)] px-2 py-0.5 rounded-full font-semibold shrink-0">
                 Today
               </span>
             )}

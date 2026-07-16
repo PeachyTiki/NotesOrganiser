@@ -23,7 +23,7 @@ if (widget) {
     ? (params.get('accentDark') || '#FF6B6B')
     : (params.get('accentLight') || '#ff0000')
   document.documentElement.classList.toggle('dark', initialDark)
-  applyAccentVars(initialAccent)
+  applyAccentVars(initialAccent, initialDark)
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -31,3 +31,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <Root />
   </React.StrictMode>
 )
+
+// Cursor-following glassy shine on every button/select (see index.css) — one
+// listener here covers the main window and both popup windows, since they
+// all load this same entry point.
+document.addEventListener('pointermove', (e) => {
+  const el = e.target.closest('button, select')
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  el.style.setProperty('--mx', `${e.clientX - rect.left}px`)
+  el.style.setProperty('--my', `${e.clientY - rect.top}px`)
+})

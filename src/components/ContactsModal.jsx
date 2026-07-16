@@ -521,7 +521,7 @@ export default function ContactsModal({ entity, onClose }) {
 
   const groupBtnClass = (full, partial) =>
     `text-xs px-2.5 py-1 rounded-md font-medium transition-colors border shrink-0 ${
-      full ? 'bg-accent text-white border-accent'
+      full ? 'bg-accent text-[color:var(--accent-contrast)] border-accent'
       : partial ? 'bg-accent/15 text-accent border-accent/30'
       : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:text-accent hover:border-accent/30'
     }`

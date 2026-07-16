@@ -244,7 +244,7 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, pre
                     onClick={() => setSchedule('dayOfWeek', i)}
                     className={`py-2 text-xs rounded-lg font-semibold transition-colors ${
                       (form.schedule?.dayOfWeek ?? 1) === i
-                        ? 'bg-accent text-white shadow-sm'
+                        ? 'bg-accent text-[color:var(--accent-contrast)] shadow-sm'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >

@@ -102,7 +102,7 @@ export default function TaskWidgetApp() {
               onClick={() => setDueFilter(f.key)}
               className={`flex-1 py-1 font-medium transition-colors ${
                 dueFilter === f.key
-                  ? 'bg-accent text-white'
+                  ? 'bg-accent text-[color:var(--accent-contrast)]'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-white/40 dark:hover:bg-white/5'
               }`}
             >

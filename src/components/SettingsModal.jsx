@@ -317,7 +317,7 @@ export default function SettingsModal({ onClose }) {
                 onClick={() => set('aiPromptMode', 'download')}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   (form.aiPromptMode || 'download') === 'download'
-                    ? 'bg-accent text-white'
+                    ? 'bg-accent text-[color:var(--accent-contrast)]'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                 }`}
               >
@@ -327,7 +327,7 @@ export default function SettingsModal({ onClose }) {
                 onClick={() => set('aiPromptMode', 'clipboard')}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   form.aiPromptMode === 'clipboard'
-                    ? 'bg-accent text-white'
+                    ? 'bg-accent text-[color:var(--accent-contrast)]'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                 }`}
               >

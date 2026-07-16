@@ -266,13 +266,13 @@ export default function TasksPage() {
               <div className="flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden text-xs">
                 <button
                   onClick={() => setAddTab('manual')}
-                  className={`px-3 py-1.5 font-medium transition-colors ${addTab === 'manual' ? 'bg-accent text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                  className={`px-3 py-1.5 font-medium transition-colors ${addTab === 'manual' ? 'bg-accent text-[color:var(--accent-contrast)]' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                 >
                   Manual
                 </button>
                 <button
                   onClick={() => setAddTab('ai')}
-                  className={`px-3 py-1.5 font-medium transition-colors flex items-center gap-1 ${addTab === 'ai' ? 'bg-accent text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                  className={`px-3 py-1.5 font-medium transition-colors flex items-center gap-1 ${addTab === 'ai' ? 'bg-accent text-[color:var(--accent-contrast)]' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                 >
                   <Brain size={11} /> AI
                 </button>
