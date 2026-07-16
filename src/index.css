@@ -51,23 +51,31 @@
 }
 
 @layer components {
+  /* Shared "Liquid Glass" recipe used across every surface below: strong
+     blur + saturation so colour from the background bleeds through, a
+     bright inset top edge to catch light like a specular highlight, and a
+     soft diffuse outer shadow for depth. The highlight + outer shadow are
+     combined into one arbitrary shadow value per class — Tailwind's shadow
+     utilities all write the same CSS variable, so @apply-ing two separate
+     `shadow-*` classes together would just let the last one win instead of
+     layering, which is why these aren't split into a reusable shadow class. */
   .btn-primary {
-    @apply bg-accent/90 backdrop-blur-md text-white px-4 py-2 rounded-lg font-medium shadow-md shadow-accent/20 hover:bg-accent-dark/90 hover:shadow-lg hover:shadow-accent/30 active:scale-95 transition-all duration-150 ease-bounce disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+    @apply bg-accent/85 backdrop-blur-xl backdrop-saturate-150 text-white px-4 py-2 rounded-lg font-medium shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),0_10px_25px_-5px_rgba(var(--accent-rgb),0.45)] hover:bg-accent-dark/90 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),0_14px_30px_-6px_rgba(var(--accent-rgb),0.55)] active:scale-95 transition-all duration-150 ease-bounce disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
   }
   .btn-secondary {
-    @apply bg-white/70 dark:bg-gray-800/60 backdrop-blur-md border border-white/60 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg font-medium shadow-sm hover:bg-white/90 dark:hover:bg-gray-700/70 hover:shadow-md active:scale-95 transition-all duration-150 ease-bounce;
+    @apply bg-white/50 dark:bg-gray-800/40 backdrop-blur-xl backdrop-saturate-150 border border-white/70 dark:border-white/10 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg font-medium shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] hover:bg-white/70 dark:hover:bg-gray-700/50 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55),0_4px_14px_-2px_rgba(0,0,0,0.15)] active:scale-95 transition-all duration-150 ease-bounce;
   }
   .btn-ghost {
-    @apply text-gray-600 dark:text-gray-400 px-3 py-2 rounded-lg font-medium hover:bg-gray-100/80 dark:hover:bg-gray-800/80 backdrop-blur-sm active:scale-95 transition-all duration-150 ease-bounce;
+    @apply text-gray-600 dark:text-gray-400 px-3 py-2 rounded-lg font-medium hover:bg-white/50 dark:hover:bg-gray-800/50 hover:backdrop-blur-xl active:scale-95 transition-all duration-150 ease-bounce;
   }
   .input {
-    @apply w-full px-3 py-2 border border-gray-200/70 dark:border-gray-600/60 rounded-lg bg-white/70 dark:bg-gray-800/60 backdrop-blur-md text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent focus:bg-white dark:focus:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 text-sm transition-all duration-150;
+    @apply w-full px-3 py-2 border border-white/60 dark:border-white/10 rounded-lg bg-white/45 dark:bg-gray-800/35 backdrop-blur-xl backdrop-saturate-150 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent focus:bg-white/80 dark:focus:bg-gray-800/70 placeholder-gray-400 dark:placeholder-gray-500 text-sm transition-all duration-150;
   }
   .label {
     @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1;
   }
   .card {
-    @apply bg-white/70 dark:bg-gray-800/50 backdrop-blur-xl rounded-xl border border-white/60 dark:border-gray-700/50 shadow-md shadow-black/5;
+    @apply bg-white/50 dark:bg-gray-800/35 backdrop-blur-2xl backdrop-saturate-150 rounded-xl border border-white/70 dark:border-white/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6),0_20px_40px_-14px_rgba(0,0,0,0.18)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08),0_20px_40px_-14px_rgba(0,0,0,0.55)];
   }
   .section-title {
     @apply text-lg font-semibold text-gray-900 dark:text-gray-100;
@@ -75,7 +83,12 @@
 
   /* Glassy dropdown / popover panel — used for menus that float above content */
   .dropdown-panel {
-    @apply bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border border-white/60 dark:border-gray-700/60 shadow-xl;
+    @apply bg-white/65 dark:bg-gray-800/65 backdrop-blur-2xl backdrop-saturate-150 border border-white/70 dark:border-white/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6),0_24px_50px_-10px_rgba(0,0,0,0.28)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08),0_24px_50px_-10px_rgba(0,0,0,0.6)];
+  }
+
+  /* Frosted "pill" surface — segmented controls, floating toolbars, badges */
+  .glass-pill {
+    @apply bg-white/40 dark:bg-gray-800/40 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)];
   }
 }
 
