@@ -4,10 +4,12 @@ import A4Preview from '../components/meetings/A4Preview'
 import { makeT } from '../utils/i18n'
 import { useRemoteAppState } from './useRemoteAppState'
 
+const BACKDROP = 'bg-gradient-to-br from-gray-50 via-accent-light/80 to-accent-muted/25 dark:from-black dark:via-gray-950 dark:to-black'
+
 function Header({ title, subtitle, isInternal, onClose }) {
   return (
     <div
-      className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0 select-none"
+      className="flex items-center gap-2 px-4 py-2.5 glass-pill border-b border-white/60 dark:border-white/10 shrink-0 select-none"
       style={{ WebkitAppRegion: 'drag' }}
     >
       <div className="min-w-0 flex-1 flex items-center gap-2">
@@ -18,7 +20,7 @@ function Header({ title, subtitle, isInternal, onClose }) {
           </span>
         )}
       </div>
-      {subtitle && <p className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0">{subtitle}</p>}
+      {subtitle && <p className="text-[11px] text-gray-500 dark:text-gray-400 shrink-0">{subtitle}</p>}
       <button
         onClick={onClose}
         className="p-1 rounded text-gray-400 hover:text-red-500 transition-colors shrink-0"
@@ -43,7 +45,7 @@ export default function NotePreviewApp() {
 
   if (!remoteState) {
     return (
-      <div className="h-screen flex items-center justify-center text-sm text-gray-400 bg-white dark:bg-gray-900">
+      <div className={`h-screen flex items-center justify-center text-sm text-gray-500 dark:text-gray-400 ${BACKDROP}`}>
         Loading…
       </div>
     )
@@ -52,9 +54,9 @@ export default function NotePreviewApp() {
   const note = (remoteState.meetingNotes || []).find((n) => n.id === noteId)
   if (!note) {
     return (
-      <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900">
+      <div className={`h-screen flex flex-col ${BACKDROP}`}>
         <Header title="Meeting note" onClose={close} />
-        <div className="flex-1 flex items-center justify-center text-sm text-gray-400 dark:text-gray-500">
+        <div className="flex-1 flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
           This note could not be found — it may have been deleted.
         </div>
       </div>
@@ -75,7 +77,11 @@ export default function NotePreviewApp() {
   const t = makeT(note.language)
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900">
+    <div className={`h-screen flex flex-col relative isolate ${BACKDROP}`}>
+      <div className="pointer-events-none fixed -z-10 inset-0 overflow-hidden">
+        <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-accent/40 dark:bg-accent/12 blur-3xl" />
+        <div className="absolute -bottom-24 -right-20 w-96 h-96 rounded-full bg-accent-muted/35 dark:bg-accent-muted/10 blur-3xl" />
+      </div>
       <Header
         title={note.title || note.customer || 'Untitled'}
         subtitle={formatDate(note.date)}

@@ -10,9 +10,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkPathsExist: (paths) => ipcRenderer.invoke('check-paths-exist', paths),
   moveSyncFolder: (oldDestPath, newDestPath, trackedPaths) => ipcRenderer.invoke('move-sync-folder', oldDestPath, newDestPath, trackedPaths),
 
-  // Floating task widget + note preview popup windows
-  openTaskWidget: () => ipcRenderer.send('open-task-widget'),
-  openNotePreview: (noteId) => ipcRenderer.send('open-note-preview', noteId),
+  // Floating task widget + note preview popup windows.
+  // themeInfo ({ darkMode, accentLight, accentDark }) lets the popup apply the
+  // right look on its very first paint instead of flashing the wrong theme
+  // while it waits on the async state hand-off.
+  openTaskWidget: (themeInfo) => ipcRenderer.send('open-task-widget', themeInfo),
+  openNotePreview: (noteId, themeInfo) => ipcRenderer.send('open-note-preview', noteId, themeInfo),
   closeCurrentWindow: () => ipcRenderer.send('close-current-window'),
   broadcastWidgetState: (state) => ipcRenderer.send('widget-state-broadcast', state),
   getWidgetState: () => ipcRenderer.invoke('widget-get-state'),

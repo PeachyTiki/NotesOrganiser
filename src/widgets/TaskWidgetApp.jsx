@@ -53,26 +53,36 @@ export default function TaskWidgetApp() {
   }
 
   const close = () => window.electronAPI?.closeCurrentWindow?.()
-  const openPreview = (noteId) => window.electronAPI?.openNotePreview?.(noteId)
+  const openPreview = (noteId) => window.electronAPI?.openNotePreview?.(noteId, {
+    darkMode: remoteState?.darkMode,
+    accentLight: remoteState?.settings?.accentLight,
+    accentDark: remoteState?.settings?.accentDark,
+  })
 
   if (!remoteState) {
     return (
-      <div className="h-screen flex items-center justify-center text-sm text-gray-400 bg-white dark:bg-gray-900">
+      <div className="h-screen flex items-center justify-center text-sm text-gray-400 dark:text-gray-500 bg-gradient-to-br from-gray-50 via-accent-light/80 to-accent-muted/25 dark:from-black dark:via-gray-950 dark:to-black">
         Loading…
       </div>
     )
   }
 
   return (
-    <div className="h-screen flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-white overflow-hidden">
+    <div className="h-screen flex flex-col text-gray-900 dark:text-white overflow-hidden relative isolate bg-gradient-to-br from-gray-50 via-accent-light/80 to-accent-muted/25 dark:from-black dark:via-gray-950 dark:to-black">
+      {/* Ambient blobs — same recipe as the main app's background */}
+      <div className="pointer-events-none fixed -z-10 inset-0 overflow-hidden">
+        <div className="absolute -top-16 -left-16 w-64 h-64 rounded-full bg-accent/40 dark:bg-accent/12 blur-3xl" />
+        <div className="absolute -bottom-20 -right-16 w-72 h-72 rounded-full bg-accent-muted/35 dark:bg-accent-muted/10 blur-3xl" />
+      </div>
+
       {/* Drag header */}
       <div
-        className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shrink-0 select-none"
+        className="flex items-center gap-2 px-3 py-2.5 glass-pill border-b border-white/60 dark:border-white/10 shrink-0 select-none"
         style={{ WebkitAppRegion: 'drag' }}
       >
         <CheckSquare size={15} className="text-green-500 shrink-0" />
         <span className="text-sm font-semibold flex-1">Tasks</span>
-        <span className="text-[11px] text-gray-400 dark:text-gray-500">{visible.length}</span>
+        <span className="text-[11px] text-gray-500 dark:text-gray-400">{visible.length}</span>
         <button
           onClick={close}
           className="p-1 rounded text-gray-400 hover:text-red-500 transition-colors"
@@ -84,8 +94,8 @@ export default function TaskWidgetApp() {
       </div>
 
       {/* Filters */}
-      <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-800 space-y-1.5 shrink-0">
-        <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-[11px]">
+      <div className="px-3 py-2 border-b border-white/50 dark:border-white/5 space-y-1.5 shrink-0">
+        <div className="flex rounded-lg glass-pill overflow-hidden text-[11px]">
           {DUE_FILTERS.map((f) => (
             <button
               key={f.key}
@@ -93,7 +103,7 @@ export default function TaskWidgetApp() {
               className={`flex-1 py-1 font-medium transition-colors ${
                 dueFilter === f.key
                   ? 'bg-accent text-white'
-                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-white/40 dark:hover:bg-white/5'
               }`}
             >
               {f.label}
@@ -115,7 +125,7 @@ export default function TaskWidgetApp() {
       {/* Task list */}
       <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
         {visible.length === 0 ? (
-          <p className="text-center text-xs text-gray-400 dark:text-gray-500 py-6">No tasks match.</p>
+          <p className="text-center text-xs text-gray-500 dark:text-gray-400 py-6">No tasks match.</p>
         ) : (
           visible.map((task) => {
             const overdue = task.endDate && task.endDate < today && task.status !== 'complete'
@@ -123,7 +133,7 @@ export default function TaskWidgetApp() {
             return (
               <div
                 key={task.isStandalone ? `s-${task.id}` : `${task.noteId}-${task.id}`}
-                className="rounded-lg border border-gray-100 dark:border-gray-800 px-2.5 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors"
+                className="rounded-lg card px-2.5 py-2"
               >
                 <div className="flex items-start gap-2">
                   <input
@@ -133,7 +143,7 @@ export default function TaskWidgetApp() {
                     className="mt-0.5 rounded text-accent shrink-0"
                   />
                   <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-medium leading-snug ${isComplete ? 'line-through text-gray-400' : ''}`}>
+                    <p className={`text-xs font-medium leading-snug ${isComplete ? 'line-through text-gray-500 dark:text-gray-400' : ''}`}>
                       {task.text}
                     </p>
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -142,14 +152,17 @@ export default function TaskWidgetApp() {
                           className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
                             overdue
                               ? 'bg-red-50 dark:bg-red-950 text-red-500 dark:text-red-400'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                              : 'bg-white/50 dark:bg-white/10 text-gray-600 dark:text-gray-300'
                           }`}
                         >
                           {formatDue(task.endDate)}
                         </span>
                       )}
+                      {task.customer && (
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate max-w-[80px]">{task.customer}</span>
+                      )}
                       {task.assignee && (
-                        <span className="text-[10px] text-gray-400 dark:text-gray-500">{task.assignee}</span>
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400">{task.assignee}</span>
                       )}
                       {!task.isStandalone && (
                         <button
@@ -170,8 +183,8 @@ export default function TaskWidgetApp() {
       </div>
 
       {/* Footer toggle */}
-      <div className="px-3 py-1.5 border-t border-gray-100 dark:border-gray-800 shrink-0">
-        <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-gray-500 dark:text-gray-400">
+      <div className="px-3 py-1.5 border-t border-white/50 dark:border-white/5 shrink-0">
+        <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-gray-600 dark:text-gray-400">
           <input
             type="checkbox"
             checked={showComplete}

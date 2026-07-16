@@ -92,7 +92,19 @@ let taskWidgetWin = null
 let notePreviewWin = null
 let latestAppState = null
 
-function createPopupWindow(query, size) {
+// Encodes the current theme into the popup's query string (so it can apply
+// dark/accent on its very first paint) and picks a matching window
+// backgroundColor (so there's no flash of white before any HTML paints).
+function themeQuery(themeInfo) {
+  if (!themeInfo) return {}
+  return {
+    dark: themeInfo.darkMode ? '1' : '0',
+    accentLight: themeInfo.accentLight || '',
+    accentDark: themeInfo.accentDark || '',
+  }
+}
+
+function createPopupWindow(query, size, themeInfo) {
   const win = new BrowserWindow({
     width: size.width,
     height: size.height,
@@ -102,7 +114,7 @@ function createPopupWindow(query, size) {
     alwaysOnTop: true,
     resizable: true,
     fullscreenable: false,
-    backgroundColor: '#f9fafb',
+    backgroundColor: themeInfo?.darkMode ? '#030712' : '#f9fafb',
     show: false,
     webPreferences: {
       nodeIntegration: false,
@@ -113,7 +125,7 @@ function createPopupWindow(query, size) {
     ...(hasIcon ? { icon: iconPath } : {}),
   })
 
-  win.loadFile(path.join(__dirname, '../dist/index.html'), { query })
+  win.loadFile(path.join(__dirname, '../dist/index.html'), { query: { ...query, ...themeQuery(themeInfo) } })
   win.once('ready-to-show', () => win.show())
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -126,21 +138,22 @@ function createPopupWindow(query, size) {
   return win
 }
 
-ipcMain.on('open-task-widget', () => {
+ipcMain.on('open-task-widget', (_event, themeInfo) => {
   if (taskWidgetWin && !taskWidgetWin.isDestroyed()) {
     taskWidgetWin.show()
     taskWidgetWin.focus()
     return
   }
-  taskWidgetWin = createPopupWindow({ widget: 'tasks' }, { width: 340, height: 560, minWidth: 300, minHeight: 320 })
+  taskWidgetWin = createPopupWindow({ widget: 'tasks' }, { width: 340, height: 560, minWidth: 300, minHeight: 320 }, themeInfo)
   taskWidgetWin.on('closed', () => { taskWidgetWin = null })
 })
 
-ipcMain.on('open-note-preview', (_event, noteId) => {
+ipcMain.on('open-note-preview', (_event, noteId, themeInfo) => {
   if (notePreviewWin && !notePreviewWin.isDestroyed()) notePreviewWin.close()
   notePreviewWin = createPopupWindow(
     { widget: 'notePreview', noteId: String(noteId || '') },
-    { width: 760, height: 820, minWidth: 420, minHeight: 400 }
+    { width: 760, height: 820, minWidth: 420, minHeight: 400 },
+    themeInfo
   )
   notePreviewWin.on('closed', () => { notePreviewWin = null })
 })
