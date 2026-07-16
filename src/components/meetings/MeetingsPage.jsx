@@ -431,7 +431,7 @@ export default function MeetingsPage() {
     const folderIconClass = `shrink-0${folderColor ? '' : ' text-accent'}`
 
     return (
-      <div className={`flex items-center gap-2 px-4 py-3 ${isSubEntity ? 'bg-white/65 dark:bg-gray-900/90 backdrop-blur-xl backdrop-saturate-150 dark:backdrop-saturate-100' : 'glass-pill'}`}>
+      <div className={`flex items-center gap-2 px-4 py-3 ${isSubEntity ? 'bg-white/20 dark:bg-gray-900/60 backdrop-blur-xl backdrop-saturate-150 dark:backdrop-saturate-100' : ''}`}>
         {renamingId === entity.id ? (
           <>
             <input
@@ -454,27 +454,31 @@ export default function MeetingsPage() {
           </>
         ) : (
           <>
-            {/* Whole disclosure area — chevron, folder icon, and name all toggle open/closed together */}
-            <button
-              onClick={() => toggleCustomer(entity.id)}
-              className="flex-1 flex items-center gap-2 min-w-0 text-left -m-1 p-1 rounded-lg hover:bg-white/40 dark:hover:bg-gray-700/30 transition-colors"
-            >
-              {isOpen ? <ChevronDown size={15} className="text-gray-400 shrink-0" /> : <ChevronRight size={15} className="text-gray-400 shrink-0" />}
-              {isOpen
-                ? <FolderOpen size={16} className={folderIconClass} style={folderStyle} />
-                : <Folder size={16} className={folderIconClass} style={folderStyle} />
-              }
-              <span className="font-semibold text-gray-900 dark:text-white text-sm min-w-0 truncate">{entity.name}</span>
-            </button>
+            {/* Disclosure area (chevron, folder, name) + type badge — kept as
+                one shrinkable cluster so the badge always sits right next to
+                the name instead of drifting to the far right of the header. */}
+            <div className="flex-1 flex items-center gap-2 min-w-0">
+              <button
+                onClick={() => toggleCustomer(entity.id)}
+                className="flex items-center gap-2 min-w-0 text-left -m-1 p-1 rounded-lg hover:bg-white/40 dark:hover:bg-gray-700/30 transition-colors"
+              >
+                {isOpen ? <ChevronDown size={15} className="text-gray-400 shrink-0" /> : <ChevronRight size={15} className="text-gray-400 shrink-0" />}
+                {isOpen
+                  ? <FolderOpen size={16} className={folderIconClass} style={folderStyle} />
+                  : <Folder size={16} className={folderIconClass} style={folderStyle} />
+                }
+                <span className="font-semibold text-gray-900 dark:text-white text-sm min-w-0 truncate">{entity.name}</span>
+              </button>
 
-            {/* Type badge */}
-            <button
-              onClick={() => toggleEntityType(entity)}
-              className="shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded-full border transition-colors bg-accent/10 border-accent/30 text-accent hover:bg-accent/20"
-              title="Click to toggle type"
-            >
-              {typeBadge}
-            </button>
+              {/* Type badge */}
+              <button
+                onClick={() => toggleEntityType(entity)}
+                className="shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded-full border transition-colors bg-accent/10 border-accent/30 text-accent hover:bg-accent/20"
+                title="Click to toggle type"
+              >
+                {typeBadge}
+              </button>
+            </div>
 
             {/* Emoji */}
             {editingEmojiFor === entity.id ? (
@@ -732,7 +736,7 @@ export default function MeetingsPage() {
                   {renderEntityHeader(entity, false)}
 
                   {isOpen && (
-                    <div className="p-4 space-y-4 bg-white/55 dark:bg-gray-900/85 backdrop-blur-md">
+                    <div className="p-4 space-y-4 border-t border-gray-100 dark:border-gray-700">
                       {/* Sub-entities */}
                       {subs.length > 0 && (
                         <div className="space-y-2">
@@ -740,7 +744,7 @@ export default function MeetingsPage() {
                             <div key={sub.id} className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden ml-4 border-l-2 border-l-accent/30">
                               {renderEntityHeader(sub, true)}
                               {openCustomers[sub.id] && (
-                                <div className="p-4 bg-white/75 dark:bg-gray-900/95 backdrop-blur-md">
+                                <div className="p-4 bg-white dark:bg-gray-900/10">
                                   {renderMeetingsGrid(sub.id, sub.name)}
                                 </div>
                               )}
@@ -749,8 +753,10 @@ export default function MeetingsPage() {
                         </div>
                       )}
 
-                      {/* Direct meetings */}
-                      {renderMeetingsGrid(entity.id, entity.name, true)}
+                      {/* Direct meetings — same innermost treatment as a sub-entity's content */}
+                      <div className="rounded-lg bg-white dark:bg-gray-900/10 p-3">
+                        {renderMeetingsGrid(entity.id, entity.name, true)}
+                      </div>
                     </div>
                   )}
                 </div>

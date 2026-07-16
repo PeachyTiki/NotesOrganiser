@@ -4,7 +4,7 @@ import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
 import { buildStandaloneTasksAIPrompt } from '../../utils/aiPrompt'
 import { downloadBlob } from '../../utils/export'
-import { buildAllTasks } from '../../utils/taskUtils'
+import { buildAllTasks, buildCustomerTypeMap, taskCategory } from '../../utils/taskUtils'
 
 const STATUS_STYLES = {
   planned:    { badge: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300', label: 'Planned' },
@@ -41,6 +41,7 @@ export default function TasksPage() {
   const [filterCustomer, setFilterCustomer] = useState('')
   const [filterAssignee, setFilterAssignee] = useState('')
   const [filterType, setFilterType] = useState('')
+  const [filterCategory, setFilterCategory] = useState('') // '' | 'customer' | 'project'
   const [showComplete, setShowComplete] = useState(false)
   const [showOverdueOnly, setShowOverdueOnly] = useState(false)
   const [sortBy, setSortBy] = useState('date')
@@ -80,6 +81,18 @@ export default function TasksPage() {
   const customerNames = useMemo(() =>
     [...new Set((customerEntities || []).map((c) => c.name).filter(Boolean))].sort(), [customerEntities])
 
+  // Split for the manual-add form's grouped picker (Customers vs Projects).
+  const customerNamesByCategory = useMemo(() => {
+    const cust = [], proj = []
+    ;(customerEntities || []).forEach((c) => {
+      if (!c.name) return
+      ;(c.type === 'project' ? proj : cust).push(c.name)
+    })
+    return { customer: [...new Set(cust)].sort(), project: [...new Set(proj)].sort() }
+  }, [customerEntities])
+
+  const custTypeMap = useMemo(() => buildCustomerTypeMap(customerEntities), [customerEntities])
+
   const overdueCount = useMemo(() =>
     allTasks.filter((t) => t.endDate && t.endDate < today && t.status !== 'complete').length,
   [allTasks, today])
@@ -91,6 +104,7 @@ export default function TasksPage() {
       if (filterAssignee && t.assignee !== filterAssignee) return false
       if (filterType === 'internal' && !t.isInternal) return false
       if (filterType === 'standard' && t.isInternal) return false
+      if (filterCategory && taskCategory(t, custTypeMap) !== filterCategory) return false
       if (showOverdueOnly && !(t.endDate && t.endDate < today && t.status !== 'complete')) return false
       return true
     })
@@ -102,7 +116,7 @@ export default function TasksPage() {
       return sortAsc ? cmp : -cmp
     })
     return list
-  }, [allTasks, showComplete, filterCustomer, filterAssignee, filterType, sortBy, sortAsc, showOverdueOnly, today])
+  }, [allTasks, showComplete, filterCustomer, filterAssignee, filterType, filterCategory, custTypeMap, sortBy, sortAsc, showOverdueOnly, today])
 
   const handleOpenNote = (noteId) => {
     update({ activeSection: 'meetings', pendingOpenNoteId: noteId })
@@ -305,14 +319,23 @@ export default function TasksPage() {
                   />
                 </div>
                 <div>
-                  <label className="label text-xs">Customer</label>
+                  <label className="label text-xs">Customer / Project</label>
                   <select
                     className="input text-sm"
                     value={formData.customer}
                     onChange={(e) => setFormData((f) => ({ ...f, customer: e.target.value }))}
                   >
                     <option value="">None</option>
-                    {customerNames.map((c) => <option key={c} value={c}>{c}</option>)}
+                    {customerNamesByCategory.customer.length > 0 && (
+                      <optgroup label="Customers">
+                        {customerNamesByCategory.customer.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </optgroup>
+                    )}
+                    {customerNamesByCategory.project.length > 0 && (
+                      <optgroup label="Projects">
+                        {customerNamesByCategory.project.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
                 <div>
@@ -445,12 +468,36 @@ export default function TasksPage() {
           <Filter size={13} className="text-accent shrink-0" />
           <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Filters</span>
         </div>
+        <div className="flex items-center gap-1.5">
+          {(['', 'customer', 'project']).map((f) => (
+            <button
+              key={f || 'all'}
+              onClick={() => setFilterCategory(f)}
+              className={`text-xs font-medium px-3 py-1 rounded-full border transition-colors ${
+                filterCategory === f
+                  ? 'bg-accent text-[color:var(--accent-contrast)] border-accent'
+                  : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-accent hover:text-accent'
+              }`}
+            >
+              {f === '' ? 'All' : f === 'customer' ? 'Customers' : 'Projects'}
+            </button>
+          ))}
+        </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-1.5">
-            <label className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Customer</label>
+            <label className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Customer / Project</label>
             <select className="input text-xs py-1 min-w-[120px]" value={filterCustomer} onChange={(e) => setFilterCustomer(e.target.value)}>
               <option value="">All</option>
-              {customers.map((c) => <option key={c} value={c}>{c}</option>)}
+              {customers.filter((c) => custTypeMap[c.toLowerCase()] !== 'project').length > 0 && (
+                <optgroup label="Customers">
+                  {customers.filter((c) => custTypeMap[c.toLowerCase()] !== 'project').map((c) => <option key={c} value={c}>{c}</option>)}
+                </optgroup>
+              )}
+              {customers.filter((c) => custTypeMap[c.toLowerCase()] === 'project').length > 0 && (
+                <optgroup label="Projects">
+                  {customers.filter((c) => custTypeMap[c.toLowerCase()] === 'project').map((c) => <option key={c} value={c}>{c}</option>)}
+                </optgroup>
+              )}
             </select>
           </div>
           <div className="flex items-center gap-1.5">

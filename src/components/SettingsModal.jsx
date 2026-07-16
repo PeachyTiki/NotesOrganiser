@@ -409,16 +409,76 @@ export default function SettingsModal({ onClose }) {
                   <label className="label">Frequency</label>
                   <select
                     className="input"
-                    value={form.taskNotifications?.frequencyMinutes ?? 60}
-                    onChange={(e) => set('taskNotifications', { ...form.taskNotifications, frequencyMinutes: +e.target.value })}
+                    value={
+                      form.taskNotifications?.mode === 'weekly' ? 'weekly'
+                        : form.taskNotifications?.mode === 'daily' ? 'daily'
+                        : (form.taskNotifications?.frequencyMinutes ?? 60)
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (v === 'daily') {
+                        set('taskNotifications', { ...form.taskNotifications, mode: 'daily', dailyTime: form.taskNotifications?.dailyTime || '09:00' })
+                      } else if (v === 'weekly') {
+                        set('taskNotifications', {
+                          ...form.taskNotifications, mode: 'weekly',
+                          weeklyDay: form.taskNotifications?.weeklyDay ?? 1,
+                          weeklyTime: form.taskNotifications?.weeklyTime || '09:00',
+                        })
+                      } else {
+                        set('taskNotifications', { ...form.taskNotifications, mode: 'interval', frequencyMinutes: +v })
+                      }
+                    }}
                   >
                     <option value={30}>Every 30 minutes</option>
                     <option value={60}>Every hour</option>
                     <option value={120}>Every 2 hours</option>
                     <option value={240}>Every 4 hours</option>
                     <option value={480}>Every 8 hours</option>
-                    <option value={1440}>Once a day</option>
+                    <option value="daily">Once a day</option>
+                    <option value="weekly">Once a week</option>
                   </select>
+
+                  {form.taskNotifications?.mode === 'daily' && (
+                    <div className="mt-2">
+                      <label className="label text-xs">Time</label>
+                      <input
+                        type="time"
+                        className="input"
+                        value={form.taskNotifications?.dailyTime || '09:00'}
+                        onChange={(e) => set('taskNotifications', { ...form.taskNotifications, dailyTime: e.target.value })}
+                      />
+                    </div>
+                  )}
+
+                  {form.taskNotifications?.mode === 'weekly' && (
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="label text-xs">Day</label>
+                        <select
+                          className="input"
+                          value={form.taskNotifications?.weeklyDay ?? 1}
+                          onChange={(e) => set('taskNotifications', { ...form.taskNotifications, weeklyDay: +e.target.value })}
+                        >
+                          <option value={0}>Sunday</option>
+                          <option value={1}>Monday</option>
+                          <option value={2}>Tuesday</option>
+                          <option value={3}>Wednesday</option>
+                          <option value={4}>Thursday</option>
+                          <option value={5}>Friday</option>
+                          <option value={6}>Saturday</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="label text-xs">Time</label>
+                        <input
+                          type="time"
+                          className="input"
+                          value={form.taskNotifications?.weeklyTime || '09:00'}
+                          onChange={(e) => set('taskNotifications', { ...form.taskNotifications, weeklyTime: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

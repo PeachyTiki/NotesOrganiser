@@ -42,6 +42,26 @@ export function buildAllTasks(meetingNotes, standaloneTasks, internalEnabled) {
   return [...result, ...standalone]
 }
 
+// Name (lowercased) -> entity type ('customer' | 'project'), built from the
+// customer/project entity list. A task only carries its customer/project as
+// a free-text name (like meeting notes do), so this is how we recover which
+// category it belongs to. Names with no matching entity are left out — such
+// a task shows under "All" but not under either specific category.
+export function buildCustomerTypeMap(customerEntities) {
+  const map = {}
+  ;(customerEntities || []).forEach((c) => {
+    if (c.name) map[c.name.toLowerCase()] = c.type === 'project' ? 'project' : 'customer'
+  })
+  return map
+}
+
+// 'customer' | 'project' | null (no matching entity — freeform/unknown name)
+export function taskCategory(task, typeMap) {
+  const key = (task.customer || '').toLowerCase()
+  if (!key) return null
+  return typeMap[key] || null
+}
+
 // Monday–Friday range (ISO yyyy-mm-dd) for the week containing `today`.
 export function currentWorkWeekRange(today = new Date()) {
   const d = new Date(today)

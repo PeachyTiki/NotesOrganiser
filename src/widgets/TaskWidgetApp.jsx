@@ -1,12 +1,18 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { CheckSquare, X, FileText } from 'lucide-react'
 import { useRemoteAppState } from './useRemoteAppState'
-import { buildAllTasks, currentWorkWeekRange } from '../utils/taskUtils'
+import { buildAllTasks, currentWorkWeekRange, buildCustomerTypeMap, taskCategory } from '../utils/taskUtils'
 
 const DUE_FILTERS = [
   { key: 'today', label: 'Today' },
   { key: 'week', label: 'This Week' },
   { key: 'all', label: 'All' },
+]
+
+const CATEGORY_FILTERS = [
+  { key: '', label: 'All' },
+  { key: 'customer', label: 'Customers' },
+  { key: 'project', label: 'Projects' },
 ]
 
 function formatDue(dateStr) {
@@ -18,6 +24,7 @@ export default function TaskWidgetApp() {
   const remoteState = useRemoteAppState()
   const [dueFilter, setDueFilter] = useState('today')
   const [customerFilter, setCustomerFilter] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('') // '' | 'customer' | 'project'
   const [showComplete, setShowComplete] = useState(false)
 
   const today = new Date().toISOString().slice(0, 10)
@@ -28,13 +35,20 @@ export default function TaskWidgetApp() {
     return buildAllTasks(remoteState.meetingNotes, remoteState.standaloneTasks, !!remoteState.settings?.internalNotesEnabled)
   }, [remoteState])
 
+  const custTypeMap = useMemo(() => buildCustomerTypeMap(remoteState?.customers), [remoteState])
+
   const customers = useMemo(() =>
     [...new Set(allTasks.map((t) => t.customer).filter(Boolean))].sort(), [allTasks])
+  const customersInCategory = useMemo(() => {
+    if (!categoryFilter) return customers
+    return customers.filter((c) => custTypeMap[c.toLowerCase()] === categoryFilter)
+  }, [customers, custTypeMap, categoryFilter])
 
   const visible = useMemo(() => {
     return allTasks
       .filter((t) => showComplete || t.status !== 'complete')
       .filter((t) => !customerFilter || t.customer === customerFilter)
+      .filter((t) => !categoryFilter || taskCategory(t, custTypeMap) === categoryFilter)
       .filter((t) => {
         if (dueFilter === 'all') return true
         if (!t.endDate) return false
@@ -42,7 +56,13 @@ export default function TaskWidgetApp() {
         return t.endDate >= start && t.endDate <= end
       })
       .sort((a, b) => (a.endDate || '9999-99-99').localeCompare(b.endDate || '9999-99-99'))
-  }, [allTasks, dueFilter, customerFilter, showComplete, today, start, end])
+  }, [allTasks, dueFilter, customerFilter, categoryFilter, custTypeMap, showComplete, today, start, end])
+
+  // If the customer filter no longer belongs to the selected category, clear it
+  // rather than silently showing zero results.
+  useEffect(() => {
+    if (customerFilter && !customersInCategory.includes(customerFilter)) setCustomerFilter('')
+  }, [categoryFilter, customersInCategory, customerFilter])
 
   const toggleComplete = (task) => {
     window.electronAPI?.sendWidgetTaskAction?.({
@@ -111,14 +131,31 @@ export default function TaskWidgetApp() {
           ))}
         </div>
         {customers.length > 0 && (
-          <select
-            className="input text-[11px] py-1 w-full"
-            value={customerFilter}
-            onChange={(e) => setCustomerFilter(e.target.value)}
-          >
-            <option value="">All customers</option>
-            {customers.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <>
+            <div className="flex rounded-lg glass-pill overflow-hidden text-[11px]">
+              {CATEGORY_FILTERS.map((f) => (
+                <button
+                  key={f.key || 'all'}
+                  onClick={() => setCategoryFilter(f.key)}
+                  className={`flex-1 py-1 font-medium transition-colors ${
+                    categoryFilter === f.key
+                      ? 'bg-accent text-[color:var(--accent-contrast)]'
+                      : 'text-gray-600 dark:text-gray-300 hover:bg-white/40 dark:hover:bg-white/5'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <select
+              className="input text-[11px] py-1 w-full"
+              value={customerFilter}
+              onChange={(e) => setCustomerFilter(e.target.value)}
+            >
+              <option value="">{categoryFilter === 'project' ? 'All projects' : categoryFilter === 'customer' ? 'All customers' : 'All customers/projects'}</option>
+              {customersInCategory.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </>
         )}
       </div>
 
