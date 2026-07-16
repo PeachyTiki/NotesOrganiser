@@ -431,7 +431,7 @@ export default function MeetingsPage() {
     const folderIconClass = `shrink-0${folderColor ? '' : ' text-accent'}`
 
     return (
-      <div className={`flex items-center gap-2 px-4 py-3 ${isSubEntity ? 'bg-white/20 dark:bg-gray-800/15 backdrop-blur-xl backdrop-saturate-150' : 'glass-pill'}`}>
+      <div className={`flex items-center gap-2 px-4 py-3 ${isSubEntity ? 'bg-white/20 dark:bg-gray-900/60 backdrop-blur-xl backdrop-saturate-150 dark:backdrop-saturate-100' : 'glass-pill'}`}>
         {renamingId === entity.id ? (
           <>
             <input

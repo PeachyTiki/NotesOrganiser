@@ -630,7 +630,7 @@ export default function LibraryPage() {
                           className={!isLast ? 'border-b border-gray-100 dark:border-gray-700' : ''}
                         >
                           {/* Subgroup header */}
-                          <div className="flex items-center bg-white/20 dark:bg-gray-900/15 backdrop-blur-xl backdrop-saturate-150">
+                          <div className="flex items-center bg-white/20 dark:bg-gray-900/60 backdrop-blur-xl backdrop-saturate-150 dark:backdrop-saturate-100">
                             <button
                               onClick={() => toggleSubgroup(sg.key)}
                               className="flex-1 flex items-center gap-3 pl-8 pr-3 py-2.5 hover:bg-gray-100/50 dark:hover:bg-gray-800/20 transition-colors text-left min-w-0"

@@ -15,7 +15,10 @@
   }
 
   .dark {
-    --accent-light: rgba(var(--accent-rgb), 0.15);
+    /* Dimmer than the light-mode tint on purpose — this var drives active-nav
+       and badge backgrounds, and at higher opacity it fought with light text
+       for contrast on top of the (also stronger, also dark) glass surfaces. */
+    --accent-light: rgba(var(--accent-rgb), 0.08);
     --accent-light-rgb: var(--accent-rgb);
   }
 
@@ -63,19 +66,19 @@
     @apply bg-accent/85 backdrop-blur-xl backdrop-saturate-150 text-white px-4 py-2 rounded-lg font-medium shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),0_10px_25px_-5px_rgba(var(--accent-rgb),0.45)] hover:bg-accent-dark/90 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),0_14px_30px_-6px_rgba(var(--accent-rgb),0.55)] active:scale-95 transition-all duration-150 ease-bounce disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
   }
   .btn-secondary {
-    @apply bg-white/50 dark:bg-gray-800/40 backdrop-blur-xl backdrop-saturate-150 border border-white/70 dark:border-white/10 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg font-medium shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] hover:bg-white/70 dark:hover:bg-gray-700/50 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55),0_4px_14px_-2px_rgba(0,0,0,0.15)] active:scale-95 transition-all duration-150 ease-bounce;
+    @apply bg-white/50 dark:bg-gray-900/75 backdrop-blur-xl backdrop-saturate-150 dark:backdrop-saturate-100 border border-white/70 dark:border-white/10 text-gray-700 dark:text-gray-100 px-4 py-2 rounded-lg font-medium shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] hover:bg-white/70 dark:hover:bg-gray-800/85 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55),0_4px_14px_-2px_rgba(0,0,0,0.15)] active:scale-95 transition-all duration-150 ease-bounce;
   }
   .btn-ghost {
-    @apply text-gray-600 dark:text-gray-400 px-3 py-2 rounded-lg font-medium hover:bg-white/50 dark:hover:bg-gray-800/50 hover:backdrop-blur-xl active:scale-95 transition-all duration-150 ease-bounce;
+    @apply text-gray-600 dark:text-gray-300 px-3 py-2 rounded-lg font-medium hover:bg-white/50 dark:hover:bg-gray-900/60 hover:backdrop-blur-xl active:scale-95 transition-all duration-150 ease-bounce;
   }
   .input {
-    @apply w-full px-3 py-2 border border-white/60 dark:border-white/10 rounded-lg bg-white/45 dark:bg-gray-800/35 backdrop-blur-xl backdrop-saturate-150 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent focus:bg-white/80 dark:focus:bg-gray-800/70 placeholder-gray-400 dark:placeholder-gray-500 text-sm transition-all duration-150;
+    @apply w-full px-3 py-2 border border-white/60 dark:border-white/10 rounded-lg bg-white/45 dark:bg-gray-900/65 backdrop-blur-xl backdrop-saturate-150 dark:backdrop-saturate-100 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent focus:bg-white/80 dark:focus:bg-gray-900/90 placeholder-gray-400 dark:placeholder-gray-500 text-sm transition-all duration-150;
   }
   .label {
     @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1;
   }
   .card {
-    @apply bg-white/50 dark:bg-gray-800/35 backdrop-blur-2xl backdrop-saturate-150 rounded-xl border border-white/70 dark:border-white/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6),0_20px_40px_-14px_rgba(0,0,0,0.18)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08),0_20px_40px_-14px_rgba(0,0,0,0.55)];
+    @apply bg-white/50 dark:bg-gray-900/80 backdrop-blur-2xl backdrop-saturate-150 dark:backdrop-saturate-100 rounded-xl border border-white/70 dark:border-white/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6),0_20px_40px_-14px_rgba(0,0,0,0.18)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_20px_40px_-14px_rgba(0,0,0,0.7)];
   }
   .section-title {
     @apply text-lg font-semibold text-gray-900 dark:text-gray-100;
@@ -83,12 +86,12 @@
 
   /* Glassy dropdown / popover panel — used for menus that float above content */
   .dropdown-panel {
-    @apply bg-white/65 dark:bg-gray-800/65 backdrop-blur-2xl backdrop-saturate-150 border border-white/70 dark:border-white/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6),0_24px_50px_-10px_rgba(0,0,0,0.28)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08),0_24px_50px_-10px_rgba(0,0,0,0.6)];
+    @apply bg-white/65 dark:bg-gray-900/90 backdrop-blur-2xl backdrop-saturate-150 dark:backdrop-saturate-100 border border-white/70 dark:border-white/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6),0_24px_50px_-10px_rgba(0,0,0,0.28)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_24px_50px_-10px_rgba(0,0,0,0.8)];
   }
 
   /* Frosted "pill" surface — segmented controls, floating toolbars, badges */
   .glass-pill {
-    @apply bg-white/40 dark:bg-gray-800/40 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)];
+    @apply bg-white/40 dark:bg-gray-900/75 backdrop-blur-xl backdrop-saturate-150 dark:backdrop-saturate-100 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)];
   }
 }
 

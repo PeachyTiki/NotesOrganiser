@@ -55,17 +55,19 @@ export default function Layout({ children }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-accent-light/80 to-accent-muted/25 dark:from-gray-950 dark:via-accent/15 dark:to-black flex flex-col relative isolate">
-      {/* Ambient background blobs — give the glass panels something colourful to catch light from */}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-accent-light/80 to-accent-muted/25 dark:from-black dark:via-gray-950 dark:to-black flex flex-col relative isolate">
+      {/* Ambient background blobs — give the glass panels something colourful to catch light
+          from. Much dimmer in dark mode on purpose: at light-mode opacity they washed out
+          light-coloured text on top of the (also more transparent) dark glass surfaces. */}
       <div className="pointer-events-none fixed -z-10 inset-0 overflow-hidden">
-        <div className="absolute -top-32 -left-24 w-[36rem] h-[36rem] rounded-full bg-accent/40 blur-3xl" />
-        <div className="absolute top-1/4 -right-40 w-[38rem] h-[38rem] rounded-full bg-accent-muted/35 blur-3xl" />
-        <div className="absolute -bottom-48 left-1/4 w-[32rem] h-[32rem] rounded-full bg-accent/30 blur-3xl" />
-        <div className="absolute top-2/3 right-1/4 w-[24rem] h-[24rem] rounded-full bg-accent-dark/20 blur-3xl" />
+        <div className="absolute -top-32 -left-24 w-[36rem] h-[36rem] rounded-full bg-accent/40 dark:bg-accent/12 blur-3xl" />
+        <div className="absolute top-1/4 -right-40 w-[38rem] h-[38rem] rounded-full bg-accent-muted/35 dark:bg-accent-muted/10 blur-3xl" />
+        <div className="absolute -bottom-48 left-1/4 w-[32rem] h-[32rem] rounded-full bg-accent/30 dark:bg-accent/10 blur-3xl" />
+        <div className="absolute top-2/3 right-1/4 w-[24rem] h-[24rem] rounded-full bg-accent-dark/20 dark:bg-accent-dark/8 blur-3xl" />
       </div>
 
       {/* Top bar */}
-      <header className="bg-white/40 dark:bg-gray-900/35 backdrop-blur-2xl backdrop-saturate-150 border-b border-white/60 dark:border-white/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] sticky top-0 z-40">
+      <header className="bg-white/40 dark:bg-gray-950/80 backdrop-blur-2xl backdrop-saturate-150 dark:backdrop-saturate-100 border-b border-white/60 dark:border-white/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)] sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {!logoError ? (
