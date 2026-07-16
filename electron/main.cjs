@@ -6,6 +6,10 @@ const fs = require('fs')
 const iconPath = path.join(__dirname, '../dist/logo-light.png')
 const hasIcon = fs.existsSync(iconPath)
 
+// The primary application window. Floating popup windows relay task
+// actions back to this one, since it's the only window holding real state.
+let mainWin = null
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1440,
@@ -23,6 +27,9 @@ function createWindow() {
     show: false,
     ...(hasIcon ? { icon: iconPath } : {}),
   })
+
+  mainWin = win
+  win.on('closed', () => { if (mainWin === win) mainWin = null })
 
   win.loadFile(path.join(__dirname, '../dist/index.html'))
   win.once('ready-to-show', () => win.show())
@@ -73,6 +80,95 @@ function createWindow() {
     }
   })
 }
+
+// ── Floating popup windows (task widget + note preview) ──────────────────────
+// Frameless, always-on-top windows that load the same bundle with a
+// `?widget=` query flag so main.jsx mounts a lightweight widget component
+// instead of the full app. They carry no state of their own — see the
+// state-relay IPC below.
+
+const popupWins = new Set()
+let taskWidgetWin = null
+let notePreviewWin = null
+let latestAppState = null
+
+function createPopupWindow(query, size) {
+  const win = new BrowserWindow({
+    width: size.width,
+    height: size.height,
+    minWidth: size.minWidth,
+    minHeight: size.minHeight,
+    frame: false,
+    alwaysOnTop: true,
+    resizable: true,
+    fullscreenable: false,
+    backgroundColor: '#f9fafb',
+    show: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs'),
+    },
+    ...(hasIcon ? { icon: iconPath } : {}),
+  })
+
+  win.loadFile(path.join(__dirname, '../dist/index.html'), { query })
+  win.once('ready-to-show', () => win.show())
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url)
+    return { action: 'deny' }
+  })
+
+  popupWins.add(win)
+  win.on('closed', () => popupWins.delete(win))
+  return win
+}
+
+ipcMain.on('open-task-widget', () => {
+  if (taskWidgetWin && !taskWidgetWin.isDestroyed()) {
+    taskWidgetWin.show()
+    taskWidgetWin.focus()
+    return
+  }
+  taskWidgetWin = createPopupWindow({ widget: 'tasks' }, { width: 340, height: 560, minWidth: 300, minHeight: 320 })
+  taskWidgetWin.on('closed', () => { taskWidgetWin = null })
+})
+
+ipcMain.on('open-note-preview', (_event, noteId) => {
+  if (notePreviewWin && !notePreviewWin.isDestroyed()) notePreviewWin.close()
+  notePreviewWin = createPopupWindow(
+    { widget: 'notePreview', noteId: String(noteId || '') },
+    { width: 760, height: 820, minWidth: 420, minHeight: 400 }
+  )
+  notePreviewWin.on('closed', () => { notePreviewWin = null })
+})
+
+ipcMain.on('close-current-window', (event) => {
+  BrowserWindow.fromWebContents(event.sender)?.close()
+})
+
+// ── Cross-window state relay ─────────────────────────────────────────────────
+// The main window pushes its full state here on every change; popup windows
+// pull the latest snapshot on open and then receive live pushes.
+ipcMain.on('widget-state-broadcast', (event, state) => {
+  latestAppState = state
+  for (const win of popupWins) {
+    if (win.isDestroyed() || win.webContents === event.sender) continue
+    win.webContents.send('widget-state-update', state)
+  }
+})
+
+ipcMain.handle('widget-get-state', () => latestAppState)
+
+// Popup windows have no state of their own — task actions (e.g. marking a
+// task complete) get relayed to the main window, which actually applies them.
+ipcMain.on('widget-task-action', (_event, action) => {
+  if (mainWin && !mainWin.isDestroyed()) {
+    mainWin.webContents.send('widget-task-action', action)
+  }
+})
 
 // ── Find-in-page IPC ─────────────────────────────────────────────────────────
 ipcMain.on('find-in-page', (event, text, forward, findNext) => {
