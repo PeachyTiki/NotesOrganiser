@@ -43,6 +43,32 @@ export function resolveRuleColor(rules, val) {
   return sorted[sorted.length - 1].color
 }
 
+// Push accent-colour CSS custom properties (and their light/dark/muted
+// derivatives) onto the document root so Tailwind's `accent` utilities work.
+export function applyAccentVars(hex) {
+  const rgb = hexToRgb(hex)
+  if (!rgb) return
+  const [r, g, b] = rgb
+  const dark = hexToRgb(darkenHex(hex, 0.2))
+  const light = hexToRgb(lightenHex(hex, 0.88))
+  const muted = hexToRgb(lightenHex(hex, 0.35))
+  const el = document.documentElement
+  el.style.setProperty('--accent', hex)
+  el.style.setProperty('--accent-rgb', `${r}, ${g}, ${b}`)
+  if (dark) {
+    el.style.setProperty('--accent-dark', darkenHex(hex, 0.2))
+    el.style.setProperty('--accent-dark-rgb', `${dark[0]}, ${dark[1]}, ${dark[2]}`)
+  }
+  if (light) {
+    el.style.setProperty('--accent-light', lightenHex(hex, 0.88))
+    el.style.setProperty('--accent-light-rgb', `${light[0]}, ${light[1]}, ${light[2]}`)
+  }
+  if (muted) {
+    el.style.setProperty('--accent-muted', lightenHex(hex, 0.35))
+    el.style.setProperty('--accent-muted-rgb', `${muted[0]}, ${muted[1]}, ${muted[2]}`)
+  }
+}
+
 // Dynamic on-track colour: 0=red → orange → yellow → green=100
 export function onTrackColor(pct) {
   const t = Math.max(0, Math.min(100, pct)) / 100

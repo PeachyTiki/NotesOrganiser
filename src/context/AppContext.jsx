@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { hexToRgb, darkenHex, lightenHex } from '../utils/colorUtils'
+import { applyAccentVars } from '../utils/colorUtils'
 import { makeT, getSystemLanguage } from '../utils/i18n'
 import { renderNoteToPdfBuffer, arrayBufferToBase64 } from '../utils/export'
 import { noteMatchesSync, noteFilename, notePathParts, syncFileKey } from '../utils/syncManager'
@@ -130,30 +130,6 @@ function saveState(state) {
   } catch {}
 }
 
-function applyAccentVars(hex) {
-  const rgb = hexToRgb(hex)
-  if (!rgb) return
-  const [r, g, b] = rgb
-  const dark = hexToRgb(darkenHex(hex, 0.2))
-  const light = hexToRgb(lightenHex(hex, 0.88))
-  const muted = hexToRgb(lightenHex(hex, 0.35))
-  const el = document.documentElement
-  el.style.setProperty('--accent', hex)
-  el.style.setProperty('--accent-rgb', `${r}, ${g}, ${b}`)
-  if (dark) {
-    el.style.setProperty('--accent-dark', darkenHex(hex, 0.2))
-    el.style.setProperty('--accent-dark-rgb', `${dark[0]}, ${dark[1]}, ${dark[2]}`)
-  }
-  if (light) {
-    el.style.setProperty('--accent-light', lightenHex(hex, 0.88))
-    el.style.setProperty('--accent-light-rgb', `${light[0]}, ${light[1]}, ${light[2]}`)
-  }
-  if (muted) {
-    el.style.setProperty('--accent-muted', lightenHex(hex, 0.35))
-    el.style.setProperty('--accent-muted-rgb', `${muted[0]}, ${muted[1]}, ${muted[2]}`)
-  }
-}
-
 const AppContext = createContext(null)
 
 export function AppProvider({ children }) {
@@ -177,6 +153,13 @@ export function AppProvider({ children }) {
       : (state.settings.accentLight || DEFAULT_ACCENT_LIGHT)
     applyAccentVars(hex)
   }, [state.darkMode, state.settings.accentLight, state.settings.accentDark])
+
+  // Mirror the full app state out to the main process so any open floating
+  // windows (task widget, note preview) can stay in sync without their own
+  // localStorage copy.
+  useEffect(() => {
+    window.electronAPI?.broadcastWidgetState?.(state)
+  }, [state])
 
   const update = (patch) => setState((s) => ({ ...s, ...patch }))
 
@@ -301,6 +284,43 @@ export function AppProvider({ children }) {
   const deleteStandaloneTask = (id) =>
     setState((s) => ({ ...s, standaloneTasks: (s.standaloneTasks || []).filter((t) => t.id !== id) }))
 
+  // Shared by the Tasks page and by the floating task widget (relayed
+  // through the main process, since the widget window has no state of its own).
+  const setTaskStatus = (task, newStatus) => {
+    if (task.isStandalone) {
+      const existing = (state.standaloneTasks || []).find((t) => t.id === task.id)
+      if (existing) saveStandaloneTask({ ...existing, status: newStatus, updatedAt: new Date().toISOString() })
+      return
+    }
+    const note = state.meetingNotes.find((n) => n.id === task.noteId)
+    if (!note) return
+    const updateSections = (sections) =>
+      (sections || []).map((sec) => {
+        if (sec.id !== task.sectionId) return sec
+        return { ...sec, items: (sec.items || []).map((i) => (i.id === task.id ? { ...i, status: newStatus } : i)) }
+      })
+    const updated = {
+      ...note,
+      sections: updateSections(note.sections),
+      internalSections: updateSections(note.internalSections),
+      updatedAt: new Date().toISOString(),
+    }
+    saveMeetingNote(updated)
+    triggerNoteSync(updated)
+  }
+
+  // Always call the latest setTaskStatus even though this effect subscribes once.
+  const setTaskStatusRef = useRef(setTaskStatus)
+  setTaskStatusRef.current = setTaskStatus
+  useEffect(() => {
+    if (!window.electronAPI?.onWidgetTaskAction) return
+    return window.electronAPI.onWidgetTaskAction((action) => {
+      if (action?.type === 'setStatus' && action.task) {
+        setTaskStatusRef.current(action.task, action.status)
+      }
+    })
+  }, [])
+
   // Wipe everything and reset to defaults
   const clearAllData = () => {
     try { localStorage.removeItem(STORAGE_KEY) } catch {}
@@ -403,6 +423,7 @@ export function AppProvider({ children }) {
         deleteSectionPreset,
         saveStandaloneTask,
         deleteStandaloneTask,
+        setTaskStatus,
         saveSyncConfig,
         deleteSyncConfig,
         updateSyncFileMap,
