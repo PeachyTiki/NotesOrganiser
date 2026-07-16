@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { X, User, Globe, Palette, Download, Database, Upload, Trash2, CheckCircle2, AlertTriangle, Brain, Lock, CheckSquare, Info, LayoutTemplate } from 'lucide-react'
+import { X, User, Globe, Palette, Download, Database, Upload, Trash2, CheckCircle2, AlertTriangle, Brain, Lock, CheckSquare, Info, LayoutTemplate, Bell } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { LANGUAGES, getSystemLanguage } from '../utils/i18n'
 import Toggle from './Toggle'
@@ -381,6 +381,48 @@ export default function SettingsModal({ onClose }) {
               />
             </div>
           </div>
+
+          {/* Task Notifications */}
+          {form.tasksEnabled && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Bell size={14} className="text-accent" />
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Task Notifications</p>
+                <button onClick={() => toggleInfo('taskNotifications')} className={`p-0.5 transition-colors ${infoOpen.taskNotifications ? 'text-accent' : 'text-gray-300 dark:text-gray-600 hover:text-accent'}`} title="What is this?">
+                  <Info size={12} />
+                </button>
+              </div>
+              {infoOpen.taskNotifications && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  Shows a desktop notification on a schedule, summarising how many tasks are open, overdue, and due today. Only fires while the app is running — closed or quit doesn't queue anything up.
+                </p>
+              )}
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Enable Task Notifications</span>
+                <Toggle
+                  checked={!!form.taskNotifications?.enabled}
+                  onChange={(val) => set('taskNotifications', { ...form.taskNotifications, enabled: val })}
+                />
+              </div>
+              {form.taskNotifications?.enabled && (
+                <div>
+                  <label className="label">Frequency</label>
+                  <select
+                    className="input"
+                    value={form.taskNotifications?.frequencyMinutes ?? 60}
+                    onChange={(e) => set('taskNotifications', { ...form.taskNotifications, frequencyMinutes: +e.target.value })}
+                  >
+                    <option value={30}>Every 30 minutes</option>
+                    <option value={60}>Every hour</option>
+                    <option value={120}>Every 2 hours</option>
+                    <option value={240}>Every 4 hours</option>
+                    <option value={480}>Every 8 hours</option>
+                    <option value={1440}>Once a day</option>
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Data management */}
           <div>

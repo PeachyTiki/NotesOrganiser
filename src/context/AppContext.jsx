@@ -33,6 +33,7 @@ const defaultState = {
     notesContextDepth: 4,
     internalNotesEnabled: false,
     tasksEnabled: false,
+    taskNotifications: { enabled: false, frequencyMinutes: 60 },
     aiPromptMode: 'download',
     defaultTemplateId: '',
   },

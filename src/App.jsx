@@ -5,6 +5,7 @@ import TemplatesPage from './components/templates/TemplatesPage'
 import MeetingsPage from './components/meetings/MeetingsPage'
 import LibraryPage from './components/library/LibraryPage'
 import TasksPage from './components/tasks/TasksPage'
+import TaskNotifications from './components/TaskNotifications'
 
 function PageRouter() {
   const { activeSection } = useApp()
@@ -17,6 +18,7 @@ function PageRouter() {
 export default function App() {
   return (
     <AppProvider>
+      <TaskNotifications />
       <Layout>
         <PageRouter />
       </Layout>
