@@ -431,7 +431,7 @@ export default function MeetingsPage() {
     const folderIconClass = `shrink-0${folderColor ? '' : ' text-accent'}`
 
     return (
-      <div className={`flex items-center gap-2 px-4 py-3 ${isSubEntity ? 'bg-white/20 dark:bg-gray-900/60 backdrop-blur-xl backdrop-saturate-150 dark:backdrop-saturate-100' : 'glass-pill'}`}>
+      <div className={`flex items-center gap-2 px-4 py-3 ${isSubEntity ? 'bg-white/65 dark:bg-gray-900/90 backdrop-blur-xl backdrop-saturate-150 dark:backdrop-saturate-100' : 'glass-pill'}`}>
         {renamingId === entity.id ? (
           <>
             <input
@@ -732,7 +732,7 @@ export default function MeetingsPage() {
                   {renderEntityHeader(entity, false)}
 
                   {isOpen && (
-                    <div className="p-4 space-y-4">
+                    <div className="p-4 space-y-4 bg-white/55 dark:bg-gray-900/85 backdrop-blur-md">
                       {/* Sub-entities */}
                       {subs.length > 0 && (
                         <div className="space-y-2">
@@ -740,7 +740,7 @@ export default function MeetingsPage() {
                             <div key={sub.id} className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden ml-4 border-l-2 border-l-accent/30">
                               {renderEntityHeader(sub, true)}
                               {openCustomers[sub.id] && (
-                                <div className="p-4">
+                                <div className="p-4 bg-white/75 dark:bg-gray-900/95 backdrop-blur-md">
                                   {renderMeetingsGrid(sub.id, sub.name)}
                                 </div>
                               )}
@@ -777,7 +777,7 @@ export default function MeetingsPage() {
               </div>
 
               {openCustomers['__misc__'] && (
-                <div className="p-4">
+                <div className="p-4 bg-white/55 dark:bg-gray-900/85 backdrop-blur-md">
                   {miscMeetings.length === 0 ? (
                     <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">No misc meetings yet</p>
                   ) : (
