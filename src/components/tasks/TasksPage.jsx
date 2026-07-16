@@ -15,7 +15,7 @@ const STATUS_STYLES = {
 
 const STATUS_ORDER = ['planned', 'inProgress', 'blocked', 'complete']
 
-const EMPTY_FORM = { text: '', assignee: '', startDate: '', endDate: '', status: 'planned' }
+const EMPTY_FORM = { text: '', assignee: '', startDate: '', endDate: '', status: 'planned', customer: '', isInternal: false }
 
 function formatDate(dateStr) {
   if (!dateStr) return ''
@@ -33,13 +33,14 @@ function formatCreated(isoStr) {
 
 export default function TasksPage() {
   const {
-    meetingNotes, standaloneTasks, settings,
+    meetingNotes, standaloneTasks, settings, customers: customerEntities, darkMode,
     saveStandaloneTask, deleteStandaloneTask, setTaskStatus,
     update,
   } = useApp()
 
   const [filterCustomer, setFilterCustomer] = useState('')
   const [filterAssignee, setFilterAssignee] = useState('')
+  const [filterType, setFilterType] = useState('')
   const [showComplete, setShowComplete] = useState(false)
   const [showOverdueOnly, setShowOverdueOnly] = useState(false)
   const [sortBy, setSortBy] = useState('date')
@@ -74,6 +75,10 @@ export default function TasksPage() {
     [...new Set(allTasks.map((t) => t.customer).filter(Boolean))].sort(), [allTasks])
   const assignees = useMemo(() =>
     [...new Set(allTasks.map((t) => t.assignee).filter(Boolean))].sort(), [allTasks])
+  // Every customer/project in the app (not just ones that already have a task) —
+  // used for the manual-add customer picker and passed to the AI as known_customers.
+  const customerNames = useMemo(() =>
+    [...new Set((customerEntities || []).map((c) => c.name).filter(Boolean))].sort(), [customerEntities])
 
   const overdueCount = useMemo(() =>
     allTasks.filter((t) => t.endDate && t.endDate < today && t.status !== 'complete').length,
@@ -84,6 +89,8 @@ export default function TasksPage() {
       if (!showComplete && t.status === 'complete') return false
       if (filterCustomer && t.customer !== filterCustomer) return false
       if (filterAssignee && t.assignee !== filterAssignee) return false
+      if (filterType === 'internal' && !t.isInternal) return false
+      if (filterType === 'standard' && t.isInternal) return false
       if (showOverdueOnly && !(t.endDate && t.endDate < today && t.status !== 'complete')) return false
       return true
     })
@@ -95,14 +102,17 @@ export default function TasksPage() {
       return sortAsc ? cmp : -cmp
     })
     return list
-  }, [allTasks, showComplete, filterCustomer, filterAssignee, sortBy, sortAsc, showOverdueOnly, today])
+  }, [allTasks, showComplete, filterCustomer, filterAssignee, filterType, sortBy, sortAsc, showOverdueOnly, today])
 
   const handleOpenNote = (noteId) => {
     update({ activeSection: 'meetings', pendingOpenNoteId: noteId })
   }
 
   const handleEditStandalone = (task) => {
-    setFormData({ text: task.text, assignee: task.assignee || '', startDate: task.startDate || '', endDate: task.endDate || '', status: task.status || 'planned' })
+    setFormData({
+      text: task.text, assignee: task.assignee || '', startDate: task.startDate || '', endDate: task.endDate || '',
+      status: task.status || 'planned', customer: task.customer || '', isInternal: !!task.isInternal,
+    })
     setEditingTaskId(task.id)
     setShowAddForm(true)
     setAddTab('manual')
@@ -147,7 +157,7 @@ export default function TasksPage() {
 
   const handleAiExport = () => {
     const existing = (standaloneTasks || []).map((t) => ({ text: t.text, status: t.status }))
-    const prompt = buildStandaloneTasksAIPrompt(aiRawText, existing, settings, aiPromptMode)
+    const prompt = buildStandaloneTasksAIPrompt(aiRawText, existing, settings, aiPromptMode, customerNames)
     const json = JSON.stringify(prompt, null, 2)
     if (isClipboard) {
       navigator.clipboard.writeText(json).catch(() => {})
@@ -168,6 +178,7 @@ export default function TasksPage() {
       if (!taskList || !taskList.length) { setAiError('No tasks found in response.'); return }
       const now = new Date().toISOString()
       taskList.forEach((t) => {
+        const matchedCustomer = customerNames.find((c) => c.toLowerCase() === (t.customer || '').toLowerCase()) || ''
         saveStandaloneTask({
           id: uuid(),
           text: t.text || '',
@@ -175,6 +186,8 @@ export default function TasksPage() {
           status: t.status || 'planned',
           startDate: t.startDate || '',
           endDate: t.endDate || '',
+          customer: matchedCustomer,
+          isInternal: internalEnabled && t.type === 'internal',
           createdAt: now,
           updatedAt: now,
         })
@@ -221,7 +234,9 @@ export default function TasksPage() {
         <div className="flex items-center gap-2">
           {window.electronAPI?.openTaskWidget && (
             <button
-              onClick={() => window.electronAPI.openTaskWidget()}
+              onClick={() => window.electronAPI.openTaskWidget({
+                darkMode, accentLight: settings?.accentLight, accentDark: settings?.accentDark,
+              })}
               className="btn-secondary flex items-center gap-1.5 text-sm"
               title="Open a floating task list that stays on top of other windows"
             >
@@ -290,6 +305,17 @@ export default function TasksPage() {
                   />
                 </div>
                 <div>
+                  <label className="label text-xs">Customer</label>
+                  <select
+                    className="input text-sm"
+                    value={formData.customer}
+                    onChange={(e) => setFormData((f) => ({ ...f, customer: e.target.value }))}
+                  >
+                    <option value="">None</option>
+                    {customerNames.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
                   <label className="label text-xs">Start date</label>
                   <input
                     type="date"
@@ -320,6 +346,19 @@ export default function TasksPage() {
                     <option value="blocked">Blocked</option>
                   </select>
                 </div>
+                {internalEnabled && (
+                  <div>
+                    <label className="label text-xs">Type</label>
+                    <select
+                      className="input text-sm"
+                      value={formData.isInternal ? 'internal' : 'standard'}
+                      onChange={(e) => setFormData((f) => ({ ...f, isInternal: e.target.value === 'internal' }))}
+                    >
+                      <option value="standard">Standard</option>
+                      <option value="internal">Internal</option>
+                    </select>
+                  </div>
+                )}
               </div>
               <div className="flex gap-2">
                 <button
@@ -386,7 +425,7 @@ export default function TasksPage() {
                     rows={4}
                     value={aiImportText}
                     onChange={(e) => setAiImportText(e.target.value)}
-                    placeholder={'{"tasks": [{"text":"...", "assignee":"...", "status":"planned"}]}'}
+                    placeholder={'{"tasks": [{"text":"...", "assignee":"...", "status":"planned", "customer":"...", "type":"standard"}]}'}
                     autoFocus={isClipboard}
                   />
                   {aiError && <p className="text-xs text-red-500 dark:text-red-400">{aiError}</p>}
@@ -421,6 +460,16 @@ export default function TasksPage() {
               {assignees.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
+          {internalEnabled && (
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Type</label>
+              <select className="input text-xs py-1 min-w-[100px]" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                <option value="">All</option>
+                <option value="standard">Standard</option>
+                <option value="internal">Internal</option>
+              </select>
+            </div>
+          )}
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Sort</label>
             <select className="input text-xs py-1" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
@@ -480,6 +529,7 @@ export default function TasksPage() {
                 <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Assignee</th>
                 <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Dates</th>
                 <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Created</th>
+                <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Customer</th>
                 <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Source</th>
                 {internalEnabled && (
                   <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Type</th>
@@ -525,6 +575,11 @@ export default function TasksPage() {
                       {formatCreated(task.createdAt)}
                     </td>
 
+                    {/* Customer */}
+                    <td className="px-3 py-3 text-gray-600 dark:text-gray-400 text-xs truncate max-w-[140px]">
+                      {task.customer || '—'}
+                    </td>
+
                     {/* Source */}
                     <td className="px-3 py-3 text-xs">
                       {task.isStandalone ? (
@@ -541,9 +596,6 @@ export default function TasksPage() {
                             <FileText size={11} className="shrink-0 text-gray-400 dark:text-gray-500 group-hover/src:text-accent transition-colors" />
                             <span className="truncate max-w-[130px]">{task.noteTitle}</span>
                           </button>
-                          {task.customer && (
-                            <div className="text-gray-400 dark:text-gray-500 truncate max-w-[140px]">{task.customer}</div>
-                          )}
                           <div className="text-gray-400 dark:text-gray-500">{formatDate(task.noteDate)}</div>
                         </div>
                       )}
@@ -552,12 +604,10 @@ export default function TasksPage() {
                     {/* Type (internal notes) */}
                     {internalEnabled && (
                       <td className="px-3 py-3">
-                        {!task.isStandalone && (
-                          task.isInternal ? (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950 text-orange-600 dark:text-orange-400 font-medium">Internal</span>
-                          ) : (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 font-medium">Standard</span>
-                          )
+                        {task.isInternal ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950 text-orange-600 dark:text-orange-400 font-medium">Internal</span>
+                        ) : (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400 font-medium">Standard</span>
                         )}
                       </td>
                     )}

@@ -557,7 +557,8 @@ export function buildCombinedNotesAndTasksAIPrompt(
 
 // ─── Standalone tasks prompt (no meeting context) ────────────────────────────
 
-export function buildStandaloneTasksAIPrompt(rawText, existingTasks = [], settings = {}, promptMode = 'download') {
+export function buildStandaloneTasksAIPrompt(rawText, existingTasks = [], settings = {}, promptMode = 'download', customerNames = []) {
+  const internalEnabled = !!settings?.internalNotesEnabled
   return {
     _version: '1',
     _type: 'standalone_tasks_prompt',
@@ -566,15 +567,22 @@ export function buildStandaloneTasksAIPrompt(rawText, existingTasks = [], settin
       no_duplicate_rule: existingTasks.length > 0
         ? 'CRITICAL: existing_tasks shows tasks ALREADY saved in the system. DO NOT include any of them in your output — they are already there. Only return tasks that are genuinely new and not already listed. Compare by task text before including any item.'
         : undefined,
+      customer_assignment_rule: customerNames.length > 0
+        ? `The known_customers field lists every customer/project name in the system. If the raw_input gives you context that a task belongs to one of them (e.g. it's mentioned by name, or the whole input is clearly about one customer), set that task's "customer" field to the EXACT matching name from known_customers. If you cannot tell which customer a task belongs to, leave "customer" as an empty string — do not guess.`
+        : undefined,
+      type_assignment_rule: internalEnabled
+        ? 'Set each task\'s "type" field to "internal" if it reads as team-only / not meant for the customer to see (e.g. internal follow-ups, prep work, notes to self), or "standard" if it is customer-facing or has no such distinction. Default to "standard" when unsure.'
+        : undefined,
       output_format: [
         'CRITICAL: Respond with ONLY a raw JSON object. No code fences.',
-        'Required format: {"tasks": [{"text": "task description", "assignee": "name or empty string", "status": "planned", "startDate": "YYYY-MM-DD or empty string", "endDate": "YYYY-MM-DD or empty string"}]}',
+        `Required format: {"tasks": [{"text": "task description", "assignee": "name or empty string", "status": "planned", "startDate": "YYYY-MM-DD or empty string", "endDate": "YYYY-MM-DD or empty string"${customerNames.length > 0 ? ', "customer": "exact name from known_customers or empty string"' : ''}${internalEnabled ? ', "type": "standard or internal"' : ''}}]}`,
         'Status values: planned, inProgress, complete, blocked.',
         'startDate and endDate: fill in if a start date or deadline is mentioned for the task, otherwise use empty string.',
         ...(promptMode === 'clipboard' ? ['ZERO additional text. Start with { and end with }.'] : []),
       ].join(' '),
       tone: buildToneString(settings?.aiTone),
     },
+    ...(customerNames.length > 0 ? { known_customers: customerNames } : {}),
     existing_tasks: existingTasks.map((t) => ({ text: t.text || '', status: t.status || 'planned' })),
     raw_input: rawText || '',
   }
