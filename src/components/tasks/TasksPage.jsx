@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useRef } from 'react'
-import { CheckSquare, Filter, ChevronDown, ChevronUp, Plus, Brain, Download, Clipboard, Trash2, Pencil, FileText, X } from 'lucide-react'
+import { CheckSquare, Filter, ChevronDown, ChevronUp, Plus, Brain, Download, Clipboard, Trash2, Pencil, FileText, X, PictureInPicture2 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
 import { buildStandaloneTasksAIPrompt } from '../../utils/aiPrompt'
 import { downloadBlob } from '../../utils/export'
+import { buildAllTasks } from '../../utils/taskUtils'
 
 const STATUS_STYLES = {
   planned:    { badge: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300', label: 'Planned' },
@@ -22,11 +23,18 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+// createdAt is a full ISO timestamp (not a plain date), unlike startDate/endDate.
+function formatCreated(isoStr) {
+  if (!isoStr) return ''
+  const d = new Date(isoStr)
+  if (isNaN(d)) return ''
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
 export default function TasksPage() {
   const {
     meetingNotes, standaloneTasks, settings,
-    saveMeetingNote, triggerNoteSync,
-    saveStandaloneTask, deleteStandaloneTask,
+    saveStandaloneTask, deleteStandaloneTask, setTaskStatus,
     update,
   } = useApp()
 
@@ -59,57 +67,8 @@ export default function TasksPage() {
     aiSuccessTimer.current = setTimeout(() => setAiSuccess(''), 3500)
   }
 
-  // Tasks from meeting notes
-  const meetingTasksList = useMemo(() => {
-    const result = []
-    for (const note of meetingNotes) {
-      if (note.isDraft) continue
-      const extract = (sections, isInternal) => {
-        for (const section of sections || []) {
-          if (section.type !== 'tasks') continue
-          for (const item of section.items || []) {
-            if (!item.text) continue
-            result.push({
-              ...item,
-              noteId: note.id,
-              sectionId: section.id,
-              isInternal,
-              isStandalone: false,
-              customer: note.customer || '',
-              recurringMeetingId: note.recurringMeetingId || '',
-              noteDate: note.date || '',
-              noteTitle: note.title || note.customer || 'Untitled',
-            })
-          }
-        }
-      }
-      extract(note.sections, false)
-      if (internalEnabled) extract(note.internalSections, true)
-    }
-    return result
-  }, [meetingNotes, internalEnabled])
-
-  // Standalone tasks shaped for the combined list
-  const standaloneTasksList = useMemo(() =>
-    (standaloneTasks || []).map((t) => ({
-      ...t,
-      isStandalone: true,
-      noteId: null,
-      sectionId: null,
-      isInternal: false,
-      customer: '',
-      recurringMeetingId: '',
-      noteDate: '',
-      noteTitle: '',
-    })), [standaloneTasks])
-
-  const allTasks = useMemo(() => [...meetingTasksList, ...standaloneTasksList], [meetingTasksList, standaloneTasksList])
-
-  const meetingNoteById = useMemo(() => {
-    const m = {}
-    for (const n of meetingNotes) m[n.id] = n
-    return m
-  }, [meetingNotes])
+  const allTasks = useMemo(() =>
+    buildAllTasks(meetingNotes, standaloneTasks, internalEnabled), [meetingNotes, standaloneTasks, internalEnabled])
 
   const customers = useMemo(() =>
     [...new Set(allTasks.map((t) => t.customer).filter(Boolean))].sort(), [allTasks])
@@ -137,28 +96,6 @@ export default function TasksPage() {
     })
     return list
   }, [allTasks, showComplete, filterCustomer, filterAssignee, sortBy, sortAsc, showOverdueOnly, today])
-
-  const handleStatusChange = (task, newStatus) => {
-    if (task.isStandalone) {
-      saveStandaloneTask({ ...task, status: newStatus, updatedAt: new Date().toISOString() })
-      return
-    }
-    const note = meetingNoteById[task.noteId]
-    if (!note) return
-    const updateSections = (sections) =>
-      (sections || []).map((s) => {
-        if (s.id !== task.sectionId) return s
-        return { ...s, items: (s.items || []).map((i) => i.id === task.id ? { ...i, status: newStatus } : i) }
-      })
-    const updated = {
-      ...note,
-      sections: updateSections(note.sections),
-      internalSections: updateSections(note.internalSections),
-      updatedAt: new Date().toISOString(),
-    }
-    saveMeetingNote(updated)
-    triggerNoteSync(updated)
-  }
 
   const handleOpenNote = (noteId) => {
     update({ activeSection: 'meetings', pendingOpenNoteId: noteId })
@@ -281,13 +218,25 @@ export default function TasksPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={showAddForm ? closeAddForm : openAddForm}
-          className="btn-primary flex items-center gap-1.5 text-sm"
-        >
-          {showAddForm ? <X size={14} /> : <Plus size={14} />}
-          {showAddForm ? 'Cancel' : 'Add Task'}
-        </button>
+        <div className="flex items-center gap-2">
+          {window.electronAPI?.openTaskWidget && (
+            <button
+              onClick={() => window.electronAPI.openTaskWidget()}
+              className="btn-secondary flex items-center gap-1.5 text-sm"
+              title="Open a floating task list that stays on top of other windows"
+            >
+              <PictureInPicture2 size={14} />
+              Floating Widget
+            </button>
+          )}
+          <button
+            onClick={showAddForm ? closeAddForm : openAddForm}
+            className="btn-primary flex items-center gap-1.5 text-sm"
+          >
+            {showAddForm ? <X size={14} /> : <Plus size={14} />}
+            {showAddForm ? 'Cancel' : 'Add Task'}
+          </button>
+        </div>
       </div>
 
       {/* Add / Edit Task Panel */}
@@ -530,6 +479,7 @@ export default function TasksPage() {
                 </th>
                 <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Assignee</th>
                 <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Dates</th>
+                <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Created</th>
                 <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Source</th>
                 {internalEnabled && (
                   <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Type</th>
@@ -568,6 +518,11 @@ export default function TasksPage() {
                       {task.startDate || task.endDate
                         ? `${[formatDate(task.startDate), formatDate(task.endDate)].filter(Boolean).join(' → ')}${overdue ? ' ⚠' : ''}`
                         : '—'}
+                    </td>
+
+                    {/* Created */}
+                    <td className="px-3 py-3 text-gray-400 dark:text-gray-500 text-xs whitespace-nowrap">
+                      {formatCreated(task.createdAt)}
                     </td>
 
                     {/* Source */}
@@ -612,7 +567,7 @@ export default function TasksPage() {
                       <select
                         className={`text-xs font-semibold rounded-full px-2.5 py-0.5 border-0 cursor-pointer ${st.badge}`}
                         value={task.status}
-                        onChange={(e) => handleStatusChange(task, e.target.value)}
+                        onChange={(e) => setTaskStatus(task, e.target.value)}
                       >
                         <option value="planned">Planned</option>
                         <option value="inProgress">In Progress</option>
