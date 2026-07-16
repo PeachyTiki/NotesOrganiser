@@ -630,7 +630,7 @@ export default function LibraryPage() {
                           className={!isLast ? 'border-b border-gray-100 dark:border-gray-700' : ''}
                         >
                           {/* Subgroup header */}
-                          <div className="flex items-center bg-white/30 dark:bg-gray-900/20 backdrop-blur-md">
+                          <div className="flex items-center bg-white/20 dark:bg-gray-900/15 backdrop-blur-xl backdrop-saturate-150">
                             <button
                               onClick={() => toggleSubgroup(sg.key)}
                               className="flex-1 flex items-center gap-3 pl-8 pr-3 py-2.5 hover:bg-gray-100/50 dark:hover:bg-gray-800/20 transition-colors text-left min-w-0"
@@ -913,7 +913,7 @@ function NoteRow({ note, onView, onEdit, onDelete, internalNotesEnabled = false 
               {internalNotesEnabled && (
                 <div className="flex items-center gap-1 shrink-0">
                   {note.modes?.standard !== false && (
-                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-gray-100/60 dark:bg-gray-700/50 backdrop-blur-sm text-gray-500 dark:text-gray-400" title="Has standard note">S</span>
+                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded glass-pill text-gray-500 dark:text-gray-400" title="Has standard note">S</span>
                   )}
                   {note.modes?.internal && (
                     <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800" title="Has internal note">I</span>
@@ -926,7 +926,7 @@ function NoteRow({ note, onView, onEdit, onDelete, internalNotesEnabled = false 
                   className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${
                     actionsOpen
                       ? 'bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400'
-      : 'bg-gray-100/60 dark:bg-gray-800/50 backdrop-blur-sm text-gray-500 hover:bg-amber-50 dark:hover:bg-amber-950 hover:text-amber-600'
+      : 'glass-pill text-gray-500 hover:bg-amber-50 dark:hover:bg-amber-950 hover:text-amber-600'
                   }`}
                   title="Toggle action items"
                 >

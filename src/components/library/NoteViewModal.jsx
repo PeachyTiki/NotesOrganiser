@@ -114,11 +114,11 @@ export default function NoteViewModal({ note, onEdit, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-md" onClick={onClose} />
 
-      <div className="relative z-10 m-4 md:m-6 flex-1 flex flex-col bg-gray-100/90 dark:bg-gray-900/90 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative z-10 m-4 md:m-6 flex-1 flex flex-col dropdown-panel rounded-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-3 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-700 shrink-0">
+        <div className="flex items-center gap-3 px-5 py-3 glass-pill border-b border-white/60 dark:border-white/10 shrink-0">
 
           {/* Prev / title / next */}
           <div className="flex items-center gap-1 min-w-0 flex-1">

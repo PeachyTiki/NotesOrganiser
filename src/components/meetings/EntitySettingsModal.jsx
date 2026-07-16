@@ -69,9 +69,9 @@ export default function EntitySettingsModal({ entity, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800 sticky top-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl z-10">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-md" onClick={onClose} />
+      <div className="relative dropdown-panel rounded-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/60 dark:border-white/10 sticky top-0 glass-pill z-10">
           <div className="flex items-center gap-2 min-w-0">
             <Settings size={15} className="text-accent shrink-0" />
             <div className="min-w-0">

@@ -18,11 +18,11 @@ export default function TextEditorModal({ section, onSave, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-md" onClick={onClose} />
 
-      <div className="relative z-10 m-4 md:m-8 flex-1 flex flex-col bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+      <div className="relative z-10 m-4 md:m-8 flex-1 flex flex-col dropdown-panel rounded-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shrink-0">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-white/60 dark:border-white/10 glass-pill shrink-0">
           <h2 className="font-semibold text-gray-900 dark:text-white">
             {section.label || 'Text Section'}
           </h2>

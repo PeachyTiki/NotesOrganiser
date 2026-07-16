@@ -167,7 +167,7 @@ export default function A4Preview({
         )}
 
         {/* Mode toggle */}
-        <div className="flex items-center bg-gray-100/60 dark:bg-gray-800/50 backdrop-blur-md rounded-lg p-0.5 shrink-0">
+        <div className="flex items-center glass-pill rounded-lg p-0.5 shrink-0">
           <button
             onClick={() => setMode('scroll')}
             title="Scroll mode"

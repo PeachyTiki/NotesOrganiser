@@ -620,7 +620,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
             </button>
 
             {/* Format selector */}
-            <div className="flex items-center bg-gray-100/60 dark:bg-gray-800/50 backdrop-blur-md rounded-lg p-0.5">
+            <div className="flex items-center glass-pill rounded-lg p-0.5">
               {EXPORT_FORMATS.map((f) => (
                 <button
                   key={f.value}
@@ -677,7 +677,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
               </span>
             </label>
             {bothActive && (
-              <div className="flex items-center bg-gray-100/60 dark:bg-gray-800/50 backdrop-blur-md rounded-full p-0.5">
+              <div className="flex items-center glass-pill rounded-full p-0.5">
                 <button
                   onClick={() => setActiveMode('standard')}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeMode === 'standard' ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'}`}
@@ -1069,7 +1069,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
                 <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1 shrink-0">
                   <Lock size={11} /> Preview:
                 </span>
-                <div className="flex items-center bg-gray-100/60 dark:bg-gray-800/50 backdrop-blur-md rounded-full p-0.5">
+                <div className="flex items-center glass-pill rounded-full p-0.5">
                   {['standard', 'internal', 'both'].map((m) => (
                     <button
                       key={m}
@@ -1154,8 +1154,8 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
       {/* Discard-changes confirmation modal */}
       {showDiscardModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowDiscardModal(false)} />
-          <div className="relative bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4">
+          <div className="absolute inset-0 bg-black/35 backdrop-blur-md" onClick={() => setShowDiscardModal(false)} />
+          <div className="relative dropdown-panel rounded-2xl p-6 max-w-sm w-full mx-4">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Unsaved Changes</h3>
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-5">
               Your changes have not been saved. Save as a draft to keep them, or leave without saving.

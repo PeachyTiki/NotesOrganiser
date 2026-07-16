@@ -389,7 +389,7 @@ export default function MeetingsPage() {
         </div>
 
         {allowAddSub && addingSubOf === entityId && (
-          <div className="mt-2 flex gap-2 items-center p-2 bg-white/40 dark:bg-gray-800/30 backdrop-blur-md rounded-lg">
+          <div className="mt-2 flex gap-2 items-center p-2 glass-pill rounded-lg">
             <input
               ref={newSubInputRef}
               className="input flex-1 text-sm"
@@ -431,7 +431,7 @@ export default function MeetingsPage() {
     const folderIconClass = `shrink-0${folderColor ? '' : ' text-accent'}`
 
     return (
-      <div className={`flex items-center gap-2 px-4 py-3 ${isSubEntity ? 'bg-white/30 dark:bg-gray-800/20 backdrop-blur-md' : 'bg-white/40 dark:bg-gray-800/30 backdrop-blur-md'}`}>
+      <div className={`flex items-center gap-2 px-4 py-3 ${isSubEntity ? 'bg-white/20 dark:bg-gray-800/15 backdrop-blur-xl backdrop-saturate-150' : 'glass-pill'}`}>
         {renamingId === entity.id ? (
           <>
             <input
@@ -759,7 +759,7 @@ export default function MeetingsPage() {
 
             {/* Misc Meetings */}
             <div className="card overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 bg-white/40 dark:bg-gray-800/30 backdrop-blur-md">
+              <div className="flex items-center gap-2 px-4 py-3 glass-pill">
                 <button
                   onClick={() => toggleCustomer('__misc__')}
                   className="flex-1 flex items-center gap-2 min-w-0 text-left -m-1 p-1 rounded-lg hover:bg-white/40 dark:hover:bg-gray-700/30 transition-colors"
@@ -941,7 +941,7 @@ function RecurringMeetingCard({ meeting, isToday, noteCount, draftNotes = [], sh
           {enabledParticipants.slice(0, 4).map((p) => (
             <span
               key={p.id}
-              className="text-xs bg-gray-100/60 dark:bg-gray-700/50 backdrop-blur-sm text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full"
+              className="text-xs glass-pill text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full"
             >
               {p.name}
             </span>
