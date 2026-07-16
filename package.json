@@ -33,7 +33,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Notes Organiser"
+      "shortcutName": "Notes Organiser",
+      "deleteAppDataOnUninstall": false
     },
     "mac": {
       "icon": "public/logo-light.png",

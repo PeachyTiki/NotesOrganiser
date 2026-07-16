@@ -220,6 +220,37 @@ ipcMain.handle('save-backup', async (_event, jsonString) => {
   return { filename, folder: backupDir }
 })
 
+// Silent daily safety-net backup — written to Documents (never touched by an
+// installer/uninstaller, unlike the app's own userData folder) so there's
+// always a recent restorable snapshot even if the live app data is ever lost
+// to something outside the app's control (a bad installer upgrade, a wiped
+// profile, etc). One file per calendar day; older ones beyond the retention
+// window are pruned automatically.
+const AUTO_BACKUP_RETENTION_DAYS = 14
+
+ipcMain.handle('save-auto-backup', async (_event, jsonString) => {
+  const docsPath = app.getPath('documents')
+  const backupDir = path.join(docsPath, 'Notes Organiser', 'Backups')
+  fs.mkdirSync(backupDir, { recursive: true })
+
+  const dateStr = new Date().toISOString().slice(0, 10) // YYYY-MM-DD, sorts naturally
+  const filename = `auto_backup_${dateStr}.json`
+  fs.writeFileSync(path.join(backupDir, filename), jsonString, 'utf8')
+
+  try {
+    const cutoff = Date.now() - AUTO_BACKUP_RETENTION_DAYS * 24 * 60 * 60 * 1000
+    for (const entry of fs.readdirSync(backupDir)) {
+      if (!entry.startsWith('auto_backup_') || !entry.endsWith('.json')) continue
+      const entryPath = path.join(backupDir, entry)
+      if (fs.statSync(entryPath).mtimeMs < cutoff) fs.unlinkSync(entryPath)
+    }
+  } catch {
+    // Pruning is best-effort — never let it block the backup itself.
+  }
+
+  return { filename, folder: backupDir }
+})
+
 // ── Folder Sync IPC ───────────────────────────────────────────────────────────
 
 ipcMain.handle('select-folder', async (event) => {

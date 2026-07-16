@@ -360,6 +360,25 @@ export function AppProvider({ children }) {
     darkMode: state.darkMode,
   })
 
+  // Silent daily safety-net backup, written to Documents (never touched by an
+  // installer/uninstaller, unlike the app's own userData folder localStorage
+  // lives in). Protects against total data loss from anything outside the
+  // app's control, not just user error — see the deleteAppDataOnUninstall
+  // fix in package.json for the specific incident this responds to.
+  const createBackupRef = useRef(createBackup)
+  createBackupRef.current = createBackup
+  useEffect(() => {
+    if (!window.electronAPI?.saveAutoBackup) return
+    const run = () => {
+      try {
+        window.electronAPI.saveAutoBackup(JSON.stringify(createBackupRef.current())).catch(() => {})
+      } catch {}
+    }
+    const timeout = setTimeout(run, 10_000) // shortly after launch, not blocking startup
+    const interval = setInterval(run, 24 * 60 * 60 * 1000)
+    return () => { clearTimeout(timeout); clearInterval(interval) }
+  }, [])
+
   const triggerNoteSync = (note) => {
     if (!window.electronAPI) return
     const configs = state.syncConfigs || []
