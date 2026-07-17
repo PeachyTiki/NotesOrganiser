@@ -3,6 +3,10 @@ import { ArrowLeft, Save, Download, RefreshCw, Globe, Plus, Trash2, Clock, Chevr
 import { v4 as uuid } from 'uuid'
 import html2canvas from 'html2canvas'
 import { useApp } from '../../context/AppContext'
+import { useAlert } from '../ui/DialogProvider'
+import UnsavedChangesModal from '../ui/UnsavedChangesModal'
+import Select from '../ui/Select'
+import Popover from '../ui/Popover'
 import {
   exportNoteAsPDF,
   exportNoteAsWord,
@@ -24,6 +28,7 @@ import A4Preview from './A4Preview'
 import SectionList from './SectionList'
 import Toggle from '../Toggle'
 import NotesOverlay from './NotesOverlay'
+import TemplatePickerDropdown from '../templates/TemplatePickerDropdown'
 
 const EXPORT_FORMATS = [
   { value: 'pdf',  label: 'PDF (.pdf)' },
@@ -141,6 +146,7 @@ function emptyNote(recurringMeeting, settings, customers) {
 
 export default function MeetingNoteEditor({ recurringMeetingId, existingNote, prefilledCustomer, onClose }) {
   const { recurringMeetings, templates, saveMeetingNote, meetingNotes, settings, update, registerNavGuard, t, sectionPresets, saveSectionPreset, deleteSectionPreset, syncConfigs, syncFileMap, updateSyncFileMap, triggerNoteSync, customers } = useApp()
+  const alertUser = useAlert()
   const effectiveRecurringMeetingId = existingNote?.recurringMeetingId || recurringMeetingId
   const recurringMeeting = recurringMeetings.find((m) => m.id === effectiveRecurringMeetingId)
 
@@ -180,6 +186,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
   const [presetNameError, setPresetNameError] = useState(false)
   const [savingPreset, setSavingPreset] = useState(false)
   const presetInputRef = useRef(null)
+  const presetsBtnRef = useRef(null)
   const latestRef = useRef(null)
   const handleSaveRef = useRef(null)
   const undoRef = useRef(null)
@@ -302,21 +309,6 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
   // Initialize undo history on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { pushHistorySnapshot(note) }, [])
-
-  // Close presets dropdown on outside click
-  useEffect(() => {
-    if (!presetsOpen) return
-    const handler = (e) => {
-      if (!e.target.closest('[data-presets-container]')) {
-        setPresetsOpen(false)
-        setSavingPreset(false)
-        setPresetNameInput('')
-        setPresetNameError(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [presetsOpen])
 
   // Ctrl+S / Cmd+S to save; Ctrl+Z/Y for undo/redo (note-level snapshots)
   useEffect(() => {
@@ -502,7 +494,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
         update({ settings: { ...settings, exportFormat } })
       }
     } catch (err) {
-      alert('Export failed: ' + err.message)
+      alertUser('Export failed: ' + err.message)
     } finally {
       setExporting(false)
     }
@@ -738,24 +730,20 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
                 {internalNotesEnabled && bothActive ? (activeMode === 'internal' ? 'Internal Template' : 'Standard Template') : 'Theme / Template'}
               </label>
               {internalNotesEnabled && activeMode === 'internal' ? (
-                <select className="input" value={note.internalTemplateId || ''} onChange={(e) => set('internalTemplateId', e.target.value)}>
-                  <option value="">Default (plain)</option>
-                  {templates.map((tpl) => <option key={tpl.id} value={tpl.id}>{tpl.name}</option>)}
-                </select>
+                <TemplatePickerDropdown value={note.internalTemplateId || ''} onChange={(v) => set('internalTemplateId', v)} />
               ) : (
-                <select className="input" value={note.templateId} onChange={(e) => set('templateId', e.target.value)}>
-                  <option value="">Default (plain)</option>
-                  {templates.map((tpl) => <option key={tpl.id} value={tpl.id}>{tpl.name}</option>)}
-                </select>
+                <TemplatePickerDropdown value={note.templateId} onChange={(v) => set('templateId', v)} />
               )}
             </div>
             <div>
               <label className="label flex items-center gap-1.5">
                 <Globe size={13} className="text-gray-400" /> Language
               </label>
-              <select className="input" value={note.language} onChange={(e) => set('language', e.target.value)}>
-                {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
-              </select>
+              <Select
+                value={note.language}
+                onChange={(v) => set('language', v)}
+                options={LANGUAGES.map((l) => ({ value: l.code, label: l.label }))}
+              />
             </div>
             <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
               <label className="label mb-2">Export — Show / Hide</label>
@@ -934,16 +922,23 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
               <h2 className="section-title text-base">
                 {internalNotesEnabled && activeMode === 'internal' ? 'Internal Content Sections' : 'Content Sections'}
               </h2>
-              <div className="relative" data-presets-container>
+              <div>
                 <button
+                  ref={presetsBtnRef}
                   onClick={() => setPresetsOpen((v) => !v)}
                   className="flex items-center gap-1 text-xs text-gray-400 hover:text-accent transition-colors px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
                   title="Section layout presets"
                 >
                   <LayoutTemplate size={12} /> Presets
                 </button>
-                {presetsOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-52 dropdown-panel rounded-xl z-30 py-1">
+                <Popover
+                  open={presetsOpen}
+                  onClose={() => { setPresetsOpen(false); setSavingPreset(false); setPresetNameInput(''); setPresetNameError(false) }}
+                  anchorRef={presetsBtnRef}
+                  align="right"
+                  className="w-52 rounded-xl"
+                >
+                  <div className="py-1">
                     <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700">
                       {savingPreset ? (
                         <div>
@@ -1029,7 +1024,7 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
                       </div>
                     ))}
                   </div>
-                )}
+                </Popover>
               </div>
             </div>
             {internalNotesEnabled && activeMode === 'internal' ? (
@@ -1153,46 +1148,23 @@ export default function MeetingNoteEditor({ recurringMeetingId, existingNote, pr
 
       {/* Discard-changes confirmation modal */}
       {showDiscardModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/35 backdrop-blur-md" onClick={() => setShowDiscardModal(false)} />
-          <div className="relative dropdown-panel rounded-2xl p-6 max-w-sm w-full mx-4">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Unsaved Changes</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300 mb-5">
-              Your changes have not been saved. Save as a draft to keep them, or leave without saving.
-            </p>
-            <div className="flex gap-2 justify-end flex-wrap">
-              <button
-                className="btn-ghost text-sm"
-                onClick={() => { setShowDiscardModal(false); pendingNavRef.current = null }}
-              >
-                Cancel
-              </button>
-              <button
-                className="text-sm px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium transition-colors"
-                onClick={() => {
-                  setShowDiscardModal(false)
-                  const next = pendingNavRef.current || onClose
-                  pendingNavRef.current = null
-                  next()
-                }}
-              >
-                Leave without saving
-              </button>
-              <button
-                className="btn-primary text-sm"
-                onClick={() => {
-                  handleSaveDraft()
-                  setShowDiscardModal(false)
-                  const next = pendingNavRef.current || onClose
-                  pendingNavRef.current = null
-                  next()
-                }}
-              >
-                Save as draft
-              </button>
-            </div>
-          </div>
-        </div>
+        <UnsavedChangesModal
+          saveLabel="Save as draft"
+          onCancel={() => { setShowDiscardModal(false); pendingNavRef.current = null }}
+          onDiscard={() => {
+            setShowDiscardModal(false)
+            const next = pendingNavRef.current || onClose
+            pendingNavRef.current = null
+            next()
+          }}
+          onSave={() => {
+            handleSaveDraft()
+            setShowDiscardModal(false)
+            const next = pendingNavRef.current || onClose
+            pendingNavRef.current = null
+            next()
+          }}
+        />
       )}
 
       {/* Notes Overlay */}

@@ -2,8 +2,11 @@ import React, { useState } from 'react'
 import { ArrowLeft, Plus, Trash2, Globe } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
+import { useConfirm } from '../ui/DialogProvider'
 import { LANGUAGES, getSystemLanguage } from '../../utils/i18n'
 import Toggle from '../Toggle'
+import TemplatePickerDropdown from '../templates/TemplatePickerDropdown'
+import Select from '../ui/Select'
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -74,8 +77,10 @@ function resolveEntityDefaults(entityId, customers) {
 }
 
 export default function RecurringMeetingEditor({ meeting, prefilledCustomer, prefilledCustomerId, onClose }) {
-  const { saveRecurringMeeting, deleteRecurringMeeting, templates, settings, customers, settings: appSettings } = useApp()
+  const { saveRecurringMeeting, deleteRecurringMeeting, settings, customers, settings: appSettings } = useApp()
+  const confirm = useConfirm()
   const internalNotesEnabled = !!appSettings?.internalNotesEnabled
+  const [nameError, setNameError] = useState(false)
   const [form, setForm] = useState(() => {
     if (meeting) {
       return { ...meeting, schedule: meeting.schedule || { type: 'none' }, participants: meeting.participants?.map((p) => ({ ...p })) || [] }
@@ -106,10 +111,26 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, pre
     set('participants', form.participants.filter((p) => p.id !== id))
 
   const handleSave = () => {
-    if (!form.name.trim()) { alert('Please enter a meeting name.'); return }
+    if (!form.name.trim()) { setNameError(true); return }
     saveRecurringMeeting({ ...form, updatedAt: new Date().toISOString() })
     onClose()
   }
+
+  const customerOptions = [
+    { value: '', label: '— None (Misc Meeting) —' },
+    ...(customers || [])
+      .filter((c) => !c.parentId)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      .flatMap((entity) => {
+        const subs = (customers || [])
+          .filter((c) => c.parentId === entity.id)
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        return [
+          { value: entity.id, label: `${entity.emoji ? entity.emoji + ' ' : ''}${entity.name}` },
+          ...subs.map((sub) => ({ value: sub.id, label: `  ↳ ${sub.emoji ? sub.emoji + ' ' : ''}${sub.name}` })),
+        ]
+      }),
+  ]
 
   const label = scheduleLabel(form.schedule)
 
@@ -138,11 +159,10 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, pre
           ) : (
             <div>
               <label className="label">Customer / Project</label>
-              <select
-                className="input"
+              <Select
                 value={form.customerId || ''}
-                onChange={(e) => {
-                  const id = e.target.value
+                onChange={(v) => {
+                  const id = v
                   const entity = (customers || []).find((c) => c.id === id)
                   const defs = id ? resolveEntityDefaults(id, customers) : {}
                   setForm((f) => ({
@@ -155,44 +175,31 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, pre
                     ...(defs.tone ? { defaultNotesTone: defs.tone } : {}),
                   }))
                 }}
-              >
-                <option value="">— None (Misc Meeting) —</option>
-                {(customers || [])
-                  .filter((c) => !c.parentId)
-                  .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-                  .map((entity) => {
-                    const subs = (customers || [])
-                      .filter((c) => c.parentId === entity.id)
-                      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-                    return [
-                      <option key={entity.id} value={entity.id}>
-                        {entity.emoji ? `${entity.emoji} ` : ''}{entity.name}
-                      </option>,
-                      ...subs.map((sub) => (
-                        <option key={sub.id} value={sub.id}>
-                          {'  ↳ '}{sub.emoji ? `${sub.emoji} ` : ''}{sub.name}
-                        </option>
-                      )),
-                    ]
-                  })}
-              </select>
+                options={customerOptions}
+              />
             </div>
           )}
 
           <div>
             <label className="label">Meeting Name *</label>
-            <input className="input" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Weekly Jour Fixe" />
+            <input
+              className={`input ${nameError ? 'border-red-400 dark:border-red-500 focus:ring-red-400' : ''}`}
+              value={form.name}
+              onChange={(e) => { set('name', e.target.value); if (nameError) setNameError(false) }}
+              placeholder="e.g. Weekly Jour Fixe"
+              autoFocus={nameError}
+            />
+            {nameError && <p className="text-xs text-red-500 dark:text-red-400 mt-1">A meeting name is required.</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Default Template</label>
-              <select className="input" value={form.templateId} onChange={(e) => set('templateId', e.target.value)}>
-                <option value="">None (use system default)</option>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
+              <TemplatePickerDropdown
+                value={form.templateId}
+                onChange={(v) => set('templateId', v)}
+                placeholder="None (use system default)"
+              />
             </div>
             <div>
               <label className="label">Event Type</label>
@@ -205,12 +212,11 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, pre
               <label className="label flex items-center gap-1.5">
                 <Globe size={13} className="text-gray-400" /> Language
               </label>
-              <select className="input" value={form.language} onChange={(e) => set('language', e.target.value)}>
-                <option value="">System / app default</option>
-                {LANGUAGES.map((l) => (
-                  <option key={l.code} value={l.code}>{l.label}</option>
-                ))}
-              </select>
+              <Select
+                value={form.language}
+                onChange={(v) => set('language', v)}
+                options={[{ value: '', label: 'System / app default' }, ...LANGUAGES.map((l) => ({ value: l.code, label: l.label }))]}
+              />
             </div>
             <div>
               <label className="label">Team / Recipient Group</label>
@@ -224,13 +230,17 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, pre
           <h2 className="section-title text-base">Schedule</h2>
           <div>
             <label className="label">Recurrence</label>
-            <select className="input" value={scheduleType} onChange={(e) => setSchedule('type', e.target.value)}>
-              <option value="none">Not specified</option>
-              <option value="weekly">Weekly</option>
-              <option value="biweekly">Every two weeks (bi-weekly)</option>
-              <option value="monthly-date">Monthly — on a specific date</option>
-              <option value="monthly-weekday">Monthly — on a specific weekday</option>
-            </select>
+            <Select
+              value={scheduleType}
+              onChange={(v) => setSchedule('type', v)}
+              options={[
+                { value: 'none', label: 'Not specified' },
+                { value: 'weekly', label: 'Weekly' },
+                { value: 'biweekly', label: 'Every two weeks (bi-weekly)' },
+                { value: 'monthly-date', label: 'Monthly — on a specific date' },
+                { value: 'monthly-weekday', label: 'Monthly — on a specific weekday' },
+              ]}
+            />
           </div>
 
           {(scheduleType === 'weekly' || scheduleType === 'biweekly') && (
@@ -259,15 +269,12 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, pre
             <div>
               <label className="label">Date of month</label>
               <div className="flex items-center gap-3">
-                <select
-                  className="input w-36"
+                <Select
+                  className="w-36"
                   value={form.schedule?.dateOfMonth ?? 1}
-                  onChange={(e) => setSchedule('dateOfMonth', +e.target.value)}
-                >
-                  {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
-                    <option key={d} value={d}>{d}{ordSuffix(d)}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setSchedule('dateOfMonth', v)}
+                  options={Array.from({ length: 28 }, (_, i) => i + 1).map((d) => ({ value: d, label: `${d}${ordSuffix(d)}` }))}
+                />
                 <span className="text-sm text-gray-500 dark:text-gray-400">of every month</span>
               </div>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">
@@ -281,27 +288,25 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, pre
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label">Which occurrence</label>
-                  <select
-                    className="input"
+                  <Select
                     value={form.schedule?.weekOfMonth ?? 1}
-                    onChange={(e) => setSchedule('weekOfMonth', e.target.value === 'last' ? 'last' : +e.target.value)}
-                  >
-                    <option value={1}>1st</option>
-                    <option value={2}>2nd</option>
-                    <option value={3}>3rd</option>
-                    <option value={4}>4th</option>
-                    <option value="last">Last</option>
-                  </select>
+                    onChange={(v) => setSchedule('weekOfMonth', v)}
+                    options={[
+                      { value: 1, label: '1st' },
+                      { value: 2, label: '2nd' },
+                      { value: 3, label: '3rd' },
+                      { value: 4, label: '4th' },
+                      { value: 'last', label: 'Last' },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="label">Day of week</label>
-                  <select
-                    className="input"
+                  <Select
                     value={form.schedule?.dayOfWeek ?? 1}
-                    onChange={(e) => setSchedule('dayOfWeek', +e.target.value)}
-                  >
-                    {DAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
-                  </select>
+                    onChange={(v) => setSchedule('dayOfWeek', v)}
+                    options={DAY_NAMES.map((d, i) => ({ value: i, label: d }))}
+                  />
                 </div>
               </div>
             </div>
@@ -326,27 +331,27 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, pre
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label text-sm">Formality</label>
-              <select
-                className="input"
+              <Select
                 value={form.defaultNotesTone?.formality || 'professional'}
-                onChange={(e) => set('defaultNotesTone', { ...(form.defaultNotesTone || {}), formality: e.target.value })}
-              >
-                <option value="casual">Casual</option>
-                <option value="professional">Professional</option>
-                <option value="formal">Formal</option>
-              </select>
+                onChange={(v) => set('defaultNotesTone', { ...(form.defaultNotesTone || {}), formality: v })}
+                options={[
+                  { value: 'casual', label: 'Casual' },
+                  { value: 'professional', label: 'Professional' },
+                  { value: 'formal', label: 'Formal' },
+                ]}
+              />
             </div>
             <div>
               <label className="label text-sm">Detail Level</label>
-              <select
-                className="input"
+              <Select
                 value={form.defaultNotesTone?.conciseness || 'balanced'}
-                onChange={(e) => set('defaultNotesTone', { ...(form.defaultNotesTone || {}), conciseness: e.target.value })}
-              >
-                <option value="brief">Brief / Bullet points</option>
-                <option value="balanced">Balanced</option>
-                <option value="detailed">Detailed</option>
-              </select>
+                onChange={(v) => set('defaultNotesTone', { ...(form.defaultNotesTone || {}), conciseness: v })}
+                options={[
+                  { value: 'brief', label: 'Brief / Bullet points' },
+                  { value: 'balanced', label: 'Balanced' },
+                  { value: 'detailed', label: 'Detailed' },
+                ]}
+              />
             </div>
           </div>
           <div>
@@ -475,8 +480,9 @@ export default function RecurringMeetingEditor({ meeting, prefilledCustomer, pre
           {meeting && (
             <button
               className="btn-ghost text-red-500 hover:text-red-600"
-              onClick={() => {
-                if (confirm('Delete this recurring meeting?')) {
+              onClick={async () => {
+                const ok = await confirm({ message: 'Delete this recurring meeting?', confirmLabel: 'Delete', danger: true })
+                if (ok) {
                   deleteRecurringMeeting(meeting.id)
                   onClose()
                 }

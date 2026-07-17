@@ -1,6 +1,7 @@
 import React from 'react'
 import { v4 as uuid } from 'uuid'
 import { Plus, Trash2 } from 'lucide-react'
+import Select from '../../ui/Select'
 
 const SEVERITY = [
   { value: 'low',      label: 'Low',      color: 'bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400' },
@@ -56,23 +57,21 @@ export default function RisksSection({ section, onChange }) {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-xs text-gray-400 dark:text-gray-500 mb-0.5 block">Severity</label>
-                <select
+                <Select
                   className={`w-full text-xs rounded-md px-2 py-1 border border-gray-200 dark:border-gray-600 font-medium focus:outline-none focus:ring-1 focus:ring-accent ${sev.color}`}
                   value={item.severity}
-                  onChange={(e) => update(item.id, 'severity', e.target.value)}
-                >
-                  {SEVERITY.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
+                  onChange={(v) => update(item.id, 'severity', v)}
+                  options={SEVERITY}
+                />
               </div>
               <div>
                 <label className="text-xs text-gray-400 dark:text-gray-500 mb-0.5 block">Status</label>
-                <select
-                  className="input text-xs py-1"
+                <Select
+                  className="text-xs py-1"
                   value={item.status}
-                  onChange={(e) => update(item.id, 'status', e.target.value)}
-                >
-                  {STATUS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
+                  onChange={(v) => update(item.id, 'status', v)}
+                  options={STATUS}
+                />
               </div>
             </div>
 

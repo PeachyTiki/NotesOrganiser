@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Bold, Italic, Underline, Strikethrough, List, ListOrdered, Minus } from 'lucide-react'
+import Popover from '../../ui/Popover'
 
 const FONTS = ['Arial', 'Georgia', 'Courier New', 'Times New Roman', 'Verdana']
 const SIZES = [
@@ -23,6 +24,7 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
   const savedSelRef = useRef(null)
   const isFocusedRef = useRef(false)
   const [bulletOpen, setBulletOpen] = useState(false)
+  const bulletBtnRef = useRef(null)
 
   // Mount: set initial content once
   useEffect(() => {
@@ -120,12 +122,6 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
     }
   }, [exec, emitChange])
 
-  useEffect(() => {
-    if (!bulletOpen) return
-    const close = (e) => { if (!e.target.closest('[data-bm]')) setBulletOpen(false) }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [bulletOpen])
 
   const TBtn = ({ title, onClick, children }) => (
     <button
@@ -151,22 +147,19 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
         <Sep />
 
         {/* Bullets dropdown */}
-        <div className="relative" data-bm="1">
+        <div>
           <button
+            ref={bulletBtnRef}
             type="button"
             onMouseDown={(e) => { e.preventDefault(); saveSelection(); setBulletOpen((v) => !v) }}
             title="Bullet list"
-            data-bm="1"
             className="p-1 rounded text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center gap-0.5"
           >
             <List size={13} />
             <span className="text-xs leading-none">▾</span>
           </button>
-          {bulletOpen && (
-            <div
-              data-bm="1"
-              className="absolute top-full left-0 mt-0.5 dropdown-panel rounded-md z-50 py-1 min-w-[7rem]"
-            >
+          <Popover open={bulletOpen} onClose={() => setBulletOpen(false)} anchorRef={bulletBtnRef} className="rounded-md">
+            <div className="py-1 min-w-[7rem]">
               {BULLETS.map(({ label, style }) => (
                 <button
                   key={style}
@@ -178,7 +171,7 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
                 </button>
               ))}
             </div>
-          )}
+          </Popover>
         </div>
 
         <TBtn title="Numbered list" onClick={() => exec('insertOrderedList')}><ListOrdered size={13} /></TBtn>

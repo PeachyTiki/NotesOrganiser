@@ -1,6 +1,7 @@
 import React from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
+import Select from '../../ui/Select'
 
 const STATUS_STYLES = {
   todo:       'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
@@ -55,15 +56,16 @@ export default function ActionItemsSection({ section, onChange }) {
               value={item.dueDate}
               onChange={(e) => update(item.id, 'dueDate', e.target.value)}
             />
-            <select
-              className={`input text-sm font-medium ${STATUS_STYLES[item.status] || STATUS_STYLES.todo}`}
+            <Select
+              className={`text-sm font-medium ${STATUS_STYLES[item.status] || STATUS_STYLES.todo}`}
               value={item.status}
-              onChange={(e) => update(item.id, 'status', e.target.value)}
-            >
-              <option value="todo">To do</option>
-              <option value="inProgress">In progress</option>
-              <option value="done">Done</option>
-            </select>
+              onChange={(v) => update(item.id, 'status', v)}
+              options={[
+                { value: 'todo', label: 'To do' },
+                { value: 'inProgress', label: 'In progress' },
+                { value: 'done', label: 'Done' },
+              ]}
+            />
             <button onClick={() => remove(item.id)} className="text-gray-300 dark:text-gray-600 hover:text-red-500 transition-colors p-1">
               <Trash2 size={13} />
             </button>

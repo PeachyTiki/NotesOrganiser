@@ -5,6 +5,8 @@ import {
 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
+import { useConfirm } from '../ui/DialogProvider'
+import Select from '../ui/Select'
 import RecurringMeetingEditor, { scheduleLabel } from './RecurringMeetingEditor'
 import MeetingNoteEditor from './MeetingNoteEditor'
 import MasterNotesModal from '../MasterNotesModal'
@@ -51,6 +53,7 @@ export default function MeetingsPage() {
     saveCustomer, deleteCustomer, saveRecurringMeeting, t,
     pendingOpenNoteId, update,
   } = useApp()
+  const confirm = useConfirm()
 
   const [view, setView] = useState('list')
   const [editingMeeting, setEditingMeeting] = useState(null)
@@ -270,7 +273,7 @@ export default function MeetingsPage() {
     setAddingSubOf(null)
   }
 
-  const handleDeleteCustomer = (customer) => {
+  const handleDeleteCustomer = async (customer) => {
     // Count meetings assigned to this entity
     const directCount = recurringMeetings.filter((m) => m.customerId === customer.id).length
     const subs = subEntitiesOf[customer.id] || []
@@ -282,7 +285,8 @@ export default function MeetingsPage() {
     if (totalMeetings > 0) msg += ` ${totalMeetings} recurring meeting${totalMeetings !== 1 ? 's' : ''} will move to Misc Meetings.`
     if (subs.length > 0) msg += ` ${subs.length} sub-entit${subs.length !== 1 ? 'ies' : 'y'} will also be deleted.`
 
-    if (!confirm(msg)) return
+    const ok = await confirm({ message: msg, confirmLabel: 'Delete', danger: true })
+    if (!ok) return
 
     // Move meetings to misc
     recurringMeetings
@@ -628,17 +632,18 @@ export default function MeetingsPage() {
             <div className="flex gap-2 flex-wrap items-center">
               <div className="flex items-center gap-1.5">
                 <ArrowUpDown size={12} className="text-gray-400 shrink-0" />
-                <select
-                  className="input text-xs py-1 w-auto"
+                <Select
+                  className="text-xs py-1 w-auto"
                   value={meetingSort}
-                  onChange={(e) => setMeetingSort(e.target.value)}
-                >
-                  <option value="name_asc">Name A → Z</option>
-                  <option value="name_desc">Name Z → A</option>
-                  <option value="most_notes">Most notes</option>
-                  <option value="recently_active">Recently active</option>
-                  <option value="no_notes">No notes yet</option>
-                </select>
+                  onChange={(v) => setMeetingSort(v)}
+                  options={[
+                    { value: 'name_asc', label: 'Name A → Z' },
+                    { value: 'name_desc', label: 'Name Z → A' },
+                    { value: 'most_notes', label: 'Most notes' },
+                    { value: 'recently_active', label: 'Recently active' },
+                    { value: 'no_notes', label: 'No notes yet' },
+                  ]}
+                />
               </div>
               <button
                 onClick={() => setFilterHasNotes((v) => !v)}

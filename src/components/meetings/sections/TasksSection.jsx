@@ -2,6 +2,7 @@ import React from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../../context/AppContext'
+import Select from '../../ui/Select'
 
 const STATUS_STYLES = {
   planned:    'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
@@ -83,16 +84,17 @@ export default function TasksSection({ section, onChange }) {
                 value={item.endDate || ''}
                 onChange={(e) => update(item.id, 'endDate', e.target.value)}
               />
-              <select
-                className={`input text-sm font-medium ${STATUS_STYLES[item.status] || STATUS_STYLES.planned}`}
+              <Select
+                className={`text-sm font-medium ${STATUS_STYLES[item.status] || STATUS_STYLES.planned}`}
                 value={item.status}
-                onChange={(e) => update(item.id, 'status', e.target.value)}
-              >
-                <option value="planned">Planned</option>
-                <option value="inProgress">In Progress</option>
-                <option value="complete">Complete</option>
-                <option value="blocked">Blocked</option>
-              </select>
+                onChange={(v) => update(item.id, 'status', v)}
+                options={[
+                  { value: 'planned', label: 'Planned' },
+                  { value: 'inProgress', label: 'In Progress' },
+                  { value: 'complete', label: 'Complete' },
+                  { value: 'blocked', label: 'Blocked' },
+                ]}
+              />
               <button
                 onClick={() => remove(item.id)}
                 className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors p-1"

@@ -6,6 +6,7 @@ import { markdownToHtml, htmlToPlainText } from '../../../utils/markdownToHtml'
 import RichTextEditor from './RichTextEditor'
 import { downloadBlob, formatDateForFilename } from '../../../utils/export'
 import { useApp } from '../../../context/AppContext'
+import Select from '../../ui/Select'
 
 const DEFAULT_TONE = { formality: 'professional', conciseness: 'balanced', customInstructions: '' }
 
@@ -169,19 +170,29 @@ export default function NotesSection({ section, onChange, isFirstNotesSection })
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="label text-xs">Formality</label>
-              <select className="input text-xs py-1" value={tone.formality} onChange={(e) => setToneField('formality', e.target.value)}>
-                <option value="casual">Casual</option>
-                <option value="professional">Professional</option>
-                <option value="formal">Formal</option>
-              </select>
+              <Select
+                className="text-xs py-1"
+                value={tone.formality}
+                onChange={(v) => setToneField('formality', v)}
+                options={[
+                  { value: 'casual', label: 'Casual' },
+                  { value: 'professional', label: 'Professional' },
+                  { value: 'formal', label: 'Formal' },
+                ]}
+              />
             </div>
             <div>
               <label className="label text-xs">Detail Level</label>
-              <select className="input text-xs py-1" value={tone.conciseness} onChange={(e) => setToneField('conciseness', e.target.value)}>
-                <option value="brief">Brief / Bullet points</option>
-                <option value="balanced">Balanced</option>
-                <option value="detailed">Detailed</option>
-              </select>
+              <Select
+                className="text-xs py-1"
+                value={tone.conciseness}
+                onChange={(v) => setToneField('conciseness', v)}
+                options={[
+                  { value: 'brief', label: 'Brief / Bullet points' },
+                  { value: 'balanced', label: 'Balanced' },
+                  { value: 'detailed', label: 'Detailed' },
+                ]}
+              />
             </div>
           </div>
           <div>

@@ -12,6 +12,7 @@ const DEFAULT_ACCENT_DARK = '#FF6B6B'
 const defaultState = {
   customers: [],
   templates: [],
+  templateFolders: [],
   recurringMeetings: [],
   meetingNotes: [],
   standaloneTasks: [],
@@ -39,6 +40,7 @@ const defaultState = {
     },
     aiPromptMode: 'download',
     defaultTemplateId: '',
+    autoBackupFolder: '',
   },
 }
 
@@ -69,6 +71,8 @@ function migrateState(raw) {
   return {
     ...raw,
     customers: migratedCustomers,
+    templates: (raw.templates || []).map((tpl) => ({ folderId: null, ...tpl })),
+    templateFolders: raw.templateFolders || [],
     standaloneTasks: raw.standaloneTasks || [],
     sectionPresets: raw.sectionPresets || [],
     syncConfigs: raw.syncConfigs || [],
@@ -189,6 +193,34 @@ export function AppProvider({ children }) {
   }
   const deleteTemplate = (id) =>
     setState((s) => ({ ...s, templates: s.templates.filter((t) => t.id !== id) }))
+
+  const saveTemplateFolder = (folder) => {
+    setState((s) => {
+      const folders = s.templateFolders || []
+      const exists = folders.find((f) => f.id === folder.id)
+      return {
+        ...s,
+        templateFolders: exists
+          ? folders.map((f) => (f.id === folder.id ? folder : f))
+          : [...folders, folder],
+      }
+    })
+  }
+
+  // Deleting a folder never deletes its contents — any subfolders it holds,
+  // and every template filed directly in it or its subfolders, moves back to
+  // unfiled (folderId/parentId: null) rather than being destroyed.
+  const deleteTemplateFolder = (id) =>
+    setState((s) => {
+      const folders = s.templateFolders || []
+      const subIds = folders.filter((f) => f.parentId === id).map((f) => f.id)
+      const removedIds = new Set([id, ...subIds])
+      return {
+        ...s,
+        templateFolders: folders.filter((f) => !removedIds.has(f.id)),
+        templates: s.templates.map((t) => (removedIds.has(t.folderId) ? { ...t, folderId: null } : t)),
+      }
+    })
 
   const saveRecurringMeeting = (mtg) => {
     setState((s) => {
@@ -355,6 +387,7 @@ export function AppProvider({ children }) {
     _exportedAt: new Date().toISOString(),
     customers: state.customers,
     templates: state.templates,
+    templateFolders: state.templateFolders || [],
     recurringMeetings: state.recurringMeetings,
     meetingNotes: state.meetingNotes,
     standaloneTasks: state.standaloneTasks || [],
@@ -370,12 +403,29 @@ export function AppProvider({ children }) {
   // fix in package.json for the specific incident this responds to.
   const createBackupRef = useRef(createBackup)
   createBackupRef.current = createBackup
+  // User-chosen destination for the (separate, opt-in) single-file daily
+  // backup below — kept in a ref so changing it in Settings doesn't restart
+  // this effect's timers.
+  const autoBackupFolderRef = useRef(state.settings.autoBackupFolder)
+  autoBackupFolderRef.current = state.settings.autoBackupFolder
   useEffect(() => {
     if (!window.electronAPI?.saveAutoBackup) return
     const run = () => {
       try {
         window.electronAPI.saveAutoBackup(JSON.stringify(createBackupRef.current())).catch(() => {})
       } catch {}
+      // User-configured folder (Settings → Automatic Daily Backup): a single
+      // file, overwritten every time — unlike the dated/retained safety-net
+      // backup above, this is meant as a live, always-current copy at a
+      // location of the user's choosing (e.g. a synced/cloud folder).
+      const folder = autoBackupFolderRef.current
+      if (folder && window.electronAPI?.writeFile) {
+        try {
+          const bytes = new TextEncoder().encode(JSON.stringify(createBackupRef.current()))
+          const base64 = arrayBufferToBase64(bytes.buffer)
+          window.electronAPI.writeFile([folder], 'notes_organiser_auto_backup.json', base64).catch(() => {})
+        } catch {}
+      }
     }
     const timeout = setTimeout(run, 10_000) // shortly after launch, not blocking startup
     const interval = setInterval(run, 24 * 60 * 60 * 1000)
@@ -435,6 +485,8 @@ export function AppProvider({ children }) {
         deleteCustomer,
         saveTemplate,
         deleteTemplate,
+        saveTemplateFolder,
+        deleteTemplateFolder,
         saveRecurringMeeting,
         deleteRecurringMeeting,
         saveMeetingNote,

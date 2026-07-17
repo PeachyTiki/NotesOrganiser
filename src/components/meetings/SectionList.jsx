@@ -5,6 +5,8 @@ import {
   PieChart, TrendingUp, Pencil, ChevronDown, ChevronUp, CheckSquare, Lightbulb, Brain,
   AlertTriangle, Link, Eye, EyeOff, X,
 } from 'lucide-react'
+import { useConfirm } from '../ui/DialogProvider'
+import Popover from '../ui/Popover'
 
 const SEEN_KEY = 'seen_section_types'
 const getSeen = () => { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') } catch { return [] } }
@@ -101,6 +103,7 @@ function SectionBody({ section, onChange, t, onOpenTextEditor, isFirstNotesSecti
 }
 
 function SectionCard({ section, onChange, onRemove, t, onOpenTextEditor, collapsed, onToggleCollapse, isOver, isDragging, dragHandleProps, isFirstNotesSection, showHint, onDismissHint }) {
+  const confirm = useConfirm()
   const meta = TYPE_META[section.type] || TYPE_META.text
   const Icon = meta.icon
   const typeLabel = meta.label === 'Topics' ? t('topics') : meta.label
@@ -171,7 +174,10 @@ function SectionCard({ section, onChange, onRemove, t, onOpenTextEditor, collaps
 
         {!isAlwaysShown && (
           <button
-            onClick={() => { if (confirm('Remove this section?')) onRemove() }}
+            onClick={async () => {
+              const ok = await confirm({ message: 'Remove this section?', confirmLabel: 'Remove', danger: true })
+              if (ok) onRemove()
+            }}
             className="p-1 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors shrink-0"
           >
             <Trash2 size={13} />
@@ -232,6 +238,7 @@ export default function SectionList({ sections, onChange, t, note, meetingNotes,
   const [overId, setOverId] = useState(null)
   const [hintSectionId, setHintSectionId] = useState(null)
   const collapsedBeforeDrag = useRef(null)
+  const addSectionBtnRef = useRef(null)
 
   // Initialize seen section types on first mount so existing sections don't show hints
   useEffect(() => {
@@ -345,16 +352,17 @@ export default function SectionList({ sections, onChange, t, note, meetingNotes,
       </DndContext>
 
       {/* Add section */}
-      <div className="relative">
+      <div>
         <button
+          ref={addSectionBtnRef}
           onClick={() => setAddOpen((v) => !v)}
           className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-400 dark:text-gray-500 hover:border-accent hover:text-accent transition-colors"
         >
           <Plus size={15} /> Add Section
         </button>
 
-        {addOpen && (
-          <div className="absolute top-full mt-1 left-0 right-0 dropdown-panel rounded-xl z-10 p-2 grid grid-cols-4 gap-2">
+        <Popover open={addOpen} onClose={() => setAddOpen(false)} anchorRef={addSectionBtnRef} sameWidth className="rounded-xl">
+          <div className="p-2 grid grid-cols-4 gap-2">
             {Object.entries(TYPE_META).filter(([type]) => type !== 'tasks' || tasksEnabled).map(([type, meta]) => {
               const Icon = meta.icon
               const label = meta.label === 'Topics' ? t('topics') : meta.label
@@ -370,7 +378,7 @@ export default function SectionList({ sections, onChange, t, note, meetingNotes,
               )
             })}
           </div>
-        )}
+        </Popover>
       </div>
 
       {textEditorSection && (

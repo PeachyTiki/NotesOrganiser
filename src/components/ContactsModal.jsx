@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid'
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { useApp } from '../context/AppContext'
+import Select from './ui/Select'
 
 const GROUP_COLORS = [
   '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4',
@@ -445,20 +446,19 @@ export default function ContactsModal({ entity, onClose }) {
         </div>
         <div className="col-span-2">
           <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Manager</label>
-          <select
-            className="input text-sm"
+          <Select
+            className="text-sm"
             value={managerMode === 'custom' ? '__custom__' : personForm.managerId}
-            onChange={(e) => {
-              if (e.target.value === '__custom__') setManagerMode('custom')
-              else { setManagerMode('list'); setPersonForm((f) => ({ ...f, managerId: e.target.value })) }
+            onChange={(v) => {
+              if (v === '__custom__') setManagerMode('custom')
+              else { setManagerMode('list'); setPersonForm((f) => ({ ...f, managerId: v })) }
             }}
-          >
-            <option value="">No manager</option>
-            {people.filter((p) => p.id !== editingPerson).map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-            <option value="__custom__">+ Type a name…</option>
-          </select>
+            options={[
+              { value: '', label: 'No manager' },
+              ...people.filter((p) => p.id !== editingPerson).map((p) => ({ value: p.id, label: p.name })),
+              { value: '__custom__', label: '+ Type a name…' },
+            ]}
+          />
           {managerMode === 'custom' && (
             <input className="input text-sm mt-2" placeholder="Manager name" value={personForm.managerCustom} onChange={(e) => setPersonForm((f) => ({ ...f, managerCustom: e.target.value }))} />
           )}

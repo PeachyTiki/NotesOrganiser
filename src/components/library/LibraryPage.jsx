@@ -6,6 +6,9 @@ import {
 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
+import { useConfirm, useAlert } from '../ui/DialogProvider'
+import Select from '../ui/Select'
+import Popover from '../ui/Popover'
 import { bulkExportToZip, exportSingleNote, formatDateForFilename, downloadBlob } from '../../utils/export'
 import { buildContextAIPrompt } from '../../utils/aiPrompt'
 import MeetingNoteEditor from '../meetings/MeetingNoteEditor'
@@ -31,29 +34,14 @@ function noteTs(n) {
 // exportGroups: [{ customerName, subgroups: [{ label, notes }] }]
 // level: 'library' | 'customer' | 'meeting'
 function BulkExportButton({ notes, exportGroups, zipFilename, templates, level, showText = false }) {
+  const alertUser = useAlert()
   const [busy, setBusy] = useState(false)
   const [open, setOpen] = useState(false)
-  const [dropPos, setDropPos] = useState({ top: 0, right: 0 })
-  const containerRef = useRef(null)
   const btnRef = useRef(null)
   const pngReady = notes.filter((n) => n.exportData).length
 
-  // Close on outside click (scoped to document so overflow:hidden doesn't matter)
-  useEffect(() => {
-    if (!open) return
-    const handler = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
-
   const handleToggle = (e) => {
     e.stopPropagation()
-    if (!open && btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect()
-      setDropPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    }
     setOpen((v) => !v)
   }
 
@@ -63,14 +51,14 @@ function BulkExportButton({ notes, exportGroups, zipFilename, templates, level, 
     if (busy) return
     setBusy(true)
     try {
-      await bulkExportToZip(exportGroups, templates, format, zipFilename, level)
+      await bulkExportToZip(exportGroups, templates, format, zipFilename, level, alertUser)
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div ref={containerRef} className="shrink-0">
+    <div className="shrink-0">
       <button
         ref={btnRef}
         onClick={handleToggle}
@@ -82,11 +70,8 @@ function BulkExportButton({ notes, exportGroups, zipFilename, templates, level, 
         {showText && (busy ? 'Exporting…' : `Export (${notes.length})`)}
       </button>
 
-      {open && (
-        <div
-          style={{ position: 'fixed', top: dropPos.top, right: dropPos.right, zIndex: 200 }}
-          className="dropdown-panel rounded-lg py-1 min-w-44"
-        >
+      <Popover open={open} onClose={() => setOpen(false)} anchorRef={btnRef} align="right" className="rounded-lg min-w-44">
+        <div className="py-1">
           <div className="px-3 py-1 text-xs text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-700 mb-1">
             Download as ZIP
           </div>
@@ -115,7 +100,7 @@ function BulkExportButton({ notes, exportGroups, zipFilename, templates, level, 
             )}
           </button>
         </div>
-      )}
+      </Popover>
     </div>
   )
 }
@@ -151,6 +136,7 @@ function AIContextButton({ notes, label, scope, iconSize = 12, showText = false 
 
 export default function LibraryPage() {
   const { meetingNotes, recurringMeetings, templates, saveMeetingNote, deleteMeetingNote, settings, customers, saveCustomer, t, syncFileMap } = useApp()
+  const confirm = useConfirm()
   const internalNotesEnabled = !!settings?.internalNotesEnabled
   const [editingNote, setEditingNote] = useState(null)
   const [viewingNote, setViewingNote] = useState(null)
@@ -427,38 +413,35 @@ export default function LibraryPage() {
         <div className="flex gap-2 flex-wrap items-center">
           <div className="flex items-center gap-1.5">
             <ArrowUpDown size={12} className="text-gray-400 shrink-0" />
-            <select
-              className="input text-xs py-1 w-auto"
+            <Select
+              className="text-xs py-1 w-auto"
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-            >
-              <option value="newest_edited">Last edited ↓</option>
-              <option value="oldest_edited">Last edited ↑</option>
-              <option value="date_desc">Meeting date ↓</option>
-              <option value="date_asc">Meeting date ↑</option>
-              <option value="title_asc">Title A → Z</option>
-              <option value="title_desc">Title Z → A</option>
-            </select>
+              onChange={(v) => setSortBy(v)}
+              options={[
+                { value: 'newest_edited', label: 'Last edited ↓' },
+                { value: 'oldest_edited', label: 'Last edited ↑' },
+                { value: 'date_desc', label: 'Meeting date ↓' },
+                { value: 'date_asc', label: 'Meeting date ↑' },
+                { value: 'title_asc', label: 'Title A → Z' },
+                { value: 'title_desc', label: 'Title Z → A' },
+              ]}
+            />
           </div>
           {allCustomers.length > 1 && (
-            <select
-              className="input text-xs py-1 w-auto"
+            <Select
+              className="text-xs py-1 w-auto"
               value={filterCustomer}
-              onChange={(e) => setFilterCustomer(e.target.value)}
-            >
-              <option value="">All customers</option>
-              {allCustomers.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+              onChange={(v) => setFilterCustomer(v)}
+              options={[{ value: '', label: 'All customers' }, ...allCustomers.map((c) => ({ value: c, label: c }))]}
+            />
           )}
           {allEventTypes.length > 0 && (
-            <select
-              className="input text-xs py-1 w-auto"
+            <Select
+              className="text-xs py-1 w-auto"
               value={filterEventType}
-              onChange={(e) => setFilterEventType(e.target.value)}
-            >
-              <option value="">All types</option>
-              {allEventTypes.map((e) => <option key={e} value={e}>{e}</option>)}
-            </select>
+              onChange={(v) => setFilterEventType(v)}
+              options={[{ value: '', label: 'All types' }, ...allEventTypes.map((e) => ({ value: e, label: e }))]}
+            />
           )}
         </div>
 
@@ -673,8 +656,13 @@ export default function LibraryPage() {
                                   note={note}
                                   onView={() => setViewingNote(note)}
                                   onEdit={() => setEditingNote(note)}
-                                  onDelete={() => {
-                                    if (confirm(`Delete "${note.title}"? This cannot be undone.`)) {
+                                  onDelete={async () => {
+                                    const ok = await confirm({
+                                      message: `Delete "${note.title}"? This cannot be undone.`,
+                                      confirmLabel: 'Delete',
+                                      danger: true,
+                                    })
+                                    if (ok) {
                                       if (window.electronAPI) {
                                         Object.entries(syncFileMap || {}).forEach(([key, path]) => {
                                           if (key.startsWith(`${note.id}|`) && path) {
@@ -729,27 +717,13 @@ export default function LibraryPage() {
 
 function NoteExportDropdown({ note }) {
   const { templates } = useApp()
+  const alertUser = useAlert()
   const [busy, setBusy] = useState(false)
   const [open, setOpen] = useState(false)
-  const [dropPos, setDropPos] = useState({ top: 0, right: 0 })
-  const containerRef = useRef(null)
   const btnRef = useRef(null)
-
-  useEffect(() => {
-    if (!open) return
-    const handler = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
 
   const handleToggle = (e) => {
     e.stopPropagation()
-    if (!open && btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect()
-      setDropPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
-    }
     setOpen((v) => !v)
   }
 
@@ -762,14 +736,14 @@ function NoteExportDropdown({ note }) {
       const template = (templates || []).find((t) => t.id === note.templateId) || null
       const base = `${formatDateForFilename(note.date)}_${slug(note.title || 'note')}`
       const ext = format === 'pdf' ? '.pdf' : format === 'docx' ? '.docx' : '.jpg'
-      await exportSingleNote(note, template, format, base + ext)
+      await exportSingleNote(note, template, format, base + ext, alertUser)
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div ref={containerRef}>
+    <div>
       <button
         ref={btnRef}
         onClick={handleToggle}
@@ -780,11 +754,8 @@ function NoteExportDropdown({ note }) {
         <FileDown size={13} />
       </button>
 
-      {open && (
-        <div
-          style={{ position: 'fixed', top: dropPos.top, right: dropPos.right, zIndex: 200 }}
-          className="dropdown-panel rounded-lg py-1 min-w-36"
-        >
+      <Popover open={open} onClose={() => setOpen(false)} anchorRef={btnRef} align="right" className="rounded-lg min-w-36">
+        <div className="py-1">
           <button onClick={(e) => run(e, 'pdf')} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2">
             <FileDown size={11} className="text-accent" /> PDF
           </button>
@@ -795,7 +766,7 @@ function NoteExportDropdown({ note }) {
             <FileDown size={11} className="text-green-500" /> Image (.jpg)
           </button>
         </div>
-      )}
+      </Popover>
     </div>
   )
 }

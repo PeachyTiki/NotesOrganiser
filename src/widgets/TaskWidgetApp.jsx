@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { CheckSquare, X, FileText } from 'lucide-react'
 import { useRemoteAppState } from './useRemoteAppState'
 import { buildAllTasks, currentWorkWeekRange, buildCustomerTypeMap, taskCategory } from '../utils/taskUtils'
+import Select from '../components/ui/Select'
 
 const DUE_FILTERS = [
   { key: 'today', label: 'Today' },
@@ -147,14 +148,15 @@ export default function TaskWidgetApp() {
                 </button>
               ))}
             </div>
-            <select
-              className="input text-[11px] py-1 w-full"
+            <Select
+              className="text-[11px] py-1 w-full"
               value={customerFilter}
-              onChange={(e) => setCustomerFilter(e.target.value)}
-            >
-              <option value="">{categoryFilter === 'project' ? 'All projects' : categoryFilter === 'customer' ? 'All customers' : 'All customers/projects'}</option>
-              {customersInCategory.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+              onChange={(v) => setCustomerFilter(v)}
+              options={[
+                { value: '', label: categoryFilter === 'project' ? 'All projects' : categoryFilter === 'customer' ? 'All customers' : 'All customers/projects' },
+                ...customersInCategory.map((c) => ({ value: c, label: c })),
+              ]}
+            />
           </>
         )}
       </div>

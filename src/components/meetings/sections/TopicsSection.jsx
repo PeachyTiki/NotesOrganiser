@@ -1,6 +1,7 @@
 import React from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
+import Select from '../../ui/Select'
 
 const STATUS_STYLES = {
   new: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
@@ -52,15 +53,12 @@ export default function TopicsSection({ section, onChange, t }) {
               onChange={(e) => updateItem(item.id, 'description', e.target.value)}
               placeholder={t('description')}
             />
-            <select
-              className={`input text-sm font-medium ${STATUS_STYLES[item.status] || STATUS_STYLES.new}`}
+            <Select
+              className={`text-sm font-medium ${STATUS_STYLES[item.status] || STATUS_STYLES.new}`}
               value={item.status}
-              onChange={(e) => updateItem(item.id, 'status', e.target.value)}
-            >
-              {statusOptions.map((s) => (
-                <option key={s.key} value={s.key}>{s.label}</option>
-              ))}
-            </select>
+              onChange={(v) => updateItem(item.id, 'status', v)}
+              options={statusOptions.map((s) => ({ value: s.key, label: s.label }))}
+            />
             <button
               onClick={() => removeItem(item.id)}
               className="text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors p-1"

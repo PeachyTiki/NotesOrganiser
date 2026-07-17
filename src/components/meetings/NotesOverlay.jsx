@@ -12,6 +12,7 @@ import { downloadBlob, formatDateForFilename } from '../../utils/export'
 import RichTextEditor from './sections/RichTextEditor'
 import { useApp } from '../../context/AppContext'
 import { v4 as uuid } from 'uuid'
+import Select from '../ui/Select'
 
 const DEFAULT_TONE = { formality: 'professional', conciseness: 'balanced', customInstructions: '' }
 
@@ -30,19 +31,29 @@ function TonePanel({ tone, onChange, label }) {
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="label text-xs">Formality</label>
-          <select className="input text-xs py-1" value={tone.formality} onChange={(e) => onChange({ ...tone, formality: e.target.value })}>
-            <option value="casual">Casual</option>
-            <option value="professional">Professional</option>
-            <option value="formal">Formal</option>
-          </select>
+          <Select
+            className="text-xs py-1"
+            value={tone.formality}
+            onChange={(v) => onChange({ ...tone, formality: v })}
+            options={[
+              { value: 'casual', label: 'Casual' },
+              { value: 'professional', label: 'Professional' },
+              { value: 'formal', label: 'Formal' },
+            ]}
+          />
         </div>
         <div>
           <label className="label text-xs">Detail Level</label>
-          <select className="input text-xs py-1" value={tone.conciseness} onChange={(e) => onChange({ ...tone, conciseness: e.target.value })}>
-            <option value="brief">Brief / Bullet points</option>
-            <option value="balanced">Balanced</option>
-            <option value="detailed">Detailed</option>
-          </select>
+          <Select
+            className="text-xs py-1"
+            value={tone.conciseness}
+            onChange={(v) => onChange({ ...tone, conciseness: v })}
+            options={[
+              { value: 'brief', label: 'Brief / Bullet points' },
+              { value: 'balanced', label: 'Balanced' },
+              { value: 'detailed', label: 'Detailed' },
+            ]}
+          />
         </div>
       </div>
       <div>
@@ -204,15 +215,17 @@ function TasksColumn({ label, badgeClass, section, onChange, onStatusChange, onE
               <input className="input text-xs py-1" value={item.assignee} onChange={(e) => updateItem(item.id, 'assignee', e.target.value)} placeholder="Assignee" />
               <input type="date" className="input text-xs py-1" value={item.startDate || ''} onChange={(e) => updateItem(item.id, 'startDate', e.target.value)} />
               <input type="date" className="input text-xs py-1" value={item.endDate || ''} onChange={(e) => updateItem(item.id, 'endDate', e.target.value)} />
-              <select
-                className={`input text-xs py-1 font-medium ${TASK_STATUS_STYLES[item.status] || TASK_STATUS_STYLES.planned}`}
-                value={item.status} onChange={(e) => updateItem(item.id, 'status', e.target.value)}
-              >
-                <option value="planned">Planned</option>
-                <option value="inProgress">In Progress</option>
-                <option value="complete">Complete</option>
-                <option value="blocked">Blocked</option>
-              </select>
+              <Select
+                className={`text-xs py-1 font-medium ${TASK_STATUS_STYLES[item.status] || TASK_STATUS_STYLES.planned}`}
+                value={item.status}
+                onChange={(v) => updateItem(item.id, 'status', v)}
+                options={[
+                  { value: 'planned', label: 'Planned' },
+                  { value: 'inProgress', label: 'In Progress' },
+                  { value: 'complete', label: 'Complete' },
+                  { value: 'blocked', label: 'Blocked' },
+                ]}
+              />
               <button onClick={() => removeItem(item.id)} className="text-gray-300 dark:text-gray-600 hover:text-red-500 transition-colors p-0.5">
                 <Trash2 size={11} />
               </button>

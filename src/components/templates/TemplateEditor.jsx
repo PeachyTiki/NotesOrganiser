@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { ArrowLeft, Plus, Image, ChevronDown, Check } from 'lucide-react'
+import { ArrowLeft, Plus, Image } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
+import Select from '../ui/Select'
+import UnsavedChangesModal from '../ui/UnsavedChangesModal'
 
 // ─── Font list ────────────────────────────────────────────────────────────────
 const FONTS = [
@@ -80,10 +82,11 @@ const DATE_ZONES = [
 ]
 
 
-function emptyTemplate() {
+function emptyTemplate(defaultFolderId = null) {
   return {
     id: uuid(),
     name: '',
+    folderId: defaultFolderId,
     bannerColor: '#ff0000',
     fontFamily: 'Inter',
     colorPalette: ['#ff0000', '#1E293B', '#64748B', '#F1F5F9'],
@@ -94,52 +97,17 @@ function emptyTemplate() {
 }
 
 // ─── FontPicker ───────────────────────────────────────────────────────────────
+const FONT_OPTIONS = FONTS.map((font) => ({ value: font, label: font }))
+
 function FontPicker({ value, onChange }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef()
-
-  useEffect(() => {
-    if (!open) return
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
-
   return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="input flex items-center justify-between cursor-pointer w-full text-left"
-        style={{ fontFamily: value }}
-      >
-        <span>{value}</span>
-        <ChevronDown size={14} className={`text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      {open && (
-        <div className="absolute z-30 top-full mt-1 left-0 right-0 dropdown-panel rounded-lg overflow-hidden">
-          <div className="max-h-64 overflow-y-auto">
-            {FONTS.map((font) => (
-              <button
-                key={font}
-                type="button"
-                onClick={() => { onChange(font); setOpen(false) }}
-                className={`w-full text-left px-3 py-2.5 text-sm flex items-center justify-between gap-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                  value === font
-                    ? 'bg-accent-light dark:bg-accent-light text-accent'
-                    : 'text-gray-800 dark:text-gray-100'
-                }`}
-                style={{ fontFamily: font }}
-              >
-                {font}
-                {value === font && <Check size={13} className="shrink-0 text-accent" />}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+    <Select
+      value={value}
+      onChange={onChange}
+      options={FONT_OPTIONS}
+      renderOption={(opt) => <span style={{ fontFamily: opt.value }}>{opt.label}</span>}
+      className="py-2.5"
+    />
   )
 }
 
@@ -205,13 +173,18 @@ function PalettePresets({ bannerColor, onApply }) {
 }
 
 // ─── Main editor ──────────────────────────────────────────────────────────────
-export default function TemplateEditor({ template, onClose }) {
-  const { saveTemplate } = useApp()
-  const [form, setForm] = useState(template ? { ...template } : emptyTemplate())
+export default function TemplateEditor({ template, defaultFolderId = null, onClose }) {
+  const { saveTemplate, registerNavGuard } = useApp()
+  const [form, setForm] = useState(template ? { ...template } : emptyTemplate(defaultFolderId))
   const [newColor, setNewColor] = useState('#000000')
+  const [dirty, setDirty] = useState(false)
+  const [nameError, setNameError] = useState(false)
+  const [showDiscardModal, setShowDiscardModal] = useState(false)
+  const pendingNavRef = useRef(null)
   const logoRef = useRef()
 
   const set = (path, value) => {
+    setDirty(true)
     setForm((f) => {
       const parts = path.split('.')
       if (parts.length === 1) return { ...f, [path]: value }
@@ -235,16 +208,39 @@ export default function TemplateEditor({ template, onClose }) {
     reader.readAsDataURL(file)
   }
 
-  const handleSave = () => {
-    if (!form.name.trim()) { alert('Please enter a template name.'); return }
+  // Returns true on success. Never blocks with a native alert() — a blocking
+  // dialog in this sandboxed renderer can leave form inputs unresponsive
+  // afterward (see DialogProvider.jsx), so an invalid name shows inline
+  // instead, same as the leave-confirmation modal below.
+  const doSave = () => {
+    if (!form.name.trim()) { setNameError(true); return false }
     saveTemplate({ ...form, updatedAt: new Date().toISOString() })
-    onClose()
+    setDirty(false)
+    return true
   }
+
+  const handleSave = () => { if (doSave()) onClose() }
+
+  // Let app-level navigation (top nav bar) prompt to save/discard instead of
+  // silently unmounting this editor and losing in-progress edits — same
+  // pattern as MeetingNoteEditor's guard.
+  const guard = (next) => {
+    if (!dirty) { next(); return }
+    pendingNavRef.current = next
+    setShowDiscardModal(true)
+  }
+  useEffect(() => {
+    registerNavGuard(guard)
+    return () => registerNavGuard(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty])
+
+  const requestClose = () => guard(onClose)
 
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={onClose} className="btn-ghost flex items-center gap-1.5 text-sm">
+        <button onClick={requestClose} className="btn-ghost flex items-center gap-1.5 text-sm">
           <ArrowLeft size={15} /> Back
         </button>
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -259,7 +255,14 @@ export default function TemplateEditor({ template, onClose }) {
           {/* Name */}
           <div className="card p-4">
             <label className="label">Template Name</label>
-            <input className="input" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Acme Corp Standard" />
+            <input
+              className={`input ${nameError ? 'border-red-400 dark:border-red-500 focus:ring-red-400' : ''}`}
+              value={form.name}
+              onChange={(e) => { set('name', e.target.value); if (nameError) setNameError(false) }}
+              placeholder="e.g. Acme Corp Standard"
+              autoFocus={nameError}
+            />
+            {nameError && <p className="text-xs text-red-500 dark:text-red-400 mt-1">A template name is required.</p>}
           </div>
 
           {/* Banner colour */}
@@ -352,9 +355,11 @@ export default function TemplateEditor({ template, onClose }) {
             {form.logo?.show && (
               <div>
                 <label className="label text-xs">Position</label>
-                <select className="input" value={form.logo?.position || 'top-left'} onChange={(e) => set('logo', { ...form.logo, position: e.target.value })}>
-                  {LOGO_POSITIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                </select>
+                <Select
+                  value={form.logo?.position || 'top-left'}
+                  onChange={(v) => set('logo', { ...form.logo, position: v })}
+                  options={LOGO_POSITIONS}
+                />
               </div>
             )}
           </div>
@@ -373,15 +378,19 @@ export default function TemplateEditor({ template, onClose }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label text-xs">Zone</label>
-                  <select className="input" value={form.dateConfig?.zone || 'header'} onChange={(e) => set('dateConfig', { ...form.dateConfig, zone: e.target.value })}>
-                    {DATE_ZONES.map((z) => <option key={z.value} value={z.value}>{z.label}</option>)}
-                  </select>
+                  <Select
+                    value={form.dateConfig?.zone || 'header'}
+                    onChange={(v) => set('dateConfig', { ...form.dateConfig, zone: v })}
+                    options={DATE_ZONES}
+                  />
                 </div>
                 <div>
                   <label className="label text-xs">Alignment</label>
-                  <select className="input" value={form.dateConfig?.alignment || 'right'} onChange={(e) => set('dateConfig', { ...form.dateConfig, alignment: e.target.value })}>
-                    {DATE_ALIGNMENTS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
-                  </select>
+                  <Select
+                    value={form.dateConfig?.alignment || 'right'}
+                    onChange={(v) => set('dateConfig', { ...form.dateConfig, alignment: v })}
+                    options={DATE_ALIGNMENTS}
+                  />
                 </div>
               </div>
             )}
@@ -390,7 +399,7 @@ export default function TemplateEditor({ template, onClose }) {
           {/* Actions */}
           <div className="flex gap-3">
             <button className="btn-primary flex-1" onClick={handleSave}>Save Template</button>
-            <button className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button className="btn-secondary" onClick={requestClose}>Cancel</button>
           </div>
         </div>
 
@@ -400,6 +409,27 @@ export default function TemplateEditor({ template, onClose }) {
           <TemplatePreview form={form} />
         </div>
       </div>
+
+      {showDiscardModal && (
+        <UnsavedChangesModal
+          canSave={!!form.name.trim()}
+          invalidMessage="Add a template name before this can be saved."
+          onCancel={() => { setShowDiscardModal(false); pendingNavRef.current = null }}
+          onDiscard={() => {
+            setShowDiscardModal(false)
+            const next = pendingNavRef.current || onClose
+            pendingNavRef.current = null
+            next()
+          }}
+          onSave={() => {
+            if (!doSave()) return
+            setShowDiscardModal(false)
+            const next = pendingNavRef.current || onClose
+            pendingNavRef.current = null
+            next()
+          }}
+        />
+      )}
     </div>
   )
 }

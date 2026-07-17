@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { X, FileEdit, FileDown, Lock, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
+import { useAlert } from '../ui/DialogProvider'
 import A4Preview from '../meetings/A4Preview'
 import { makeT } from '../../utils/i18n'
 import { exportSingleNote, formatDateForFilename } from '../../utils/export'
@@ -21,6 +22,7 @@ function slug(str) {
 
 export default function NoteViewModal({ note, onEdit, onClose }) {
   const { templates, settings, meetingNotes } = useApp()
+  const alertUser = useAlert()
   const internalNotesEnabled = !!settings?.internalNotesEnabled
   const tasksEnabled = !!settings?.tasksEnabled
   const stripTasks = (secs) => tasksEnabled ? secs : (secs || []).filter((s) => s.type !== 'tasks')
@@ -104,9 +106,9 @@ export default function NoteViewModal({ note, onEdit, onClose }) {
       const modeTag = isInternal ? '_internal' : ''
       const base = `${formatDateForFilename(currentNote.date)}_${slug(currentNote.title || 'note')}${modeTag}`
       const ext = exportFormat === 'pdf' ? '.pdf' : exportFormat === 'docx' ? '.docx' : '.jpg'
-      await exportSingleNote(noteForExport, templateForExport, exportFormat, base + ext)
+      await exportSingleNote(noteForExport, templateForExport, exportFormat, base + ext, alertUser)
     } catch (err) {
-      alert('Export failed: ' + err.message)
+      alertUser('Export failed: ' + err.message)
     } finally {
       setExporting(false)
     }

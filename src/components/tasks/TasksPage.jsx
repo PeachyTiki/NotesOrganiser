@@ -5,6 +5,7 @@ import { useApp } from '../../context/AppContext'
 import { buildStandaloneTasksAIPrompt } from '../../utils/aiPrompt'
 import { downloadBlob } from '../../utils/export'
 import { buildAllTasks, buildCustomerTypeMap, taskCategory } from '../../utils/taskUtils'
+import Select from '../ui/Select'
 
 const STATUS_STYLES = {
   planned:    { badge: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300', label: 'Planned' },
@@ -320,23 +321,20 @@ export default function TasksPage() {
                 </div>
                 <div>
                   <label className="label text-xs">Customer / Project</label>
-                  <select
-                    className="input text-sm"
+                  <Select
+                    className="text-sm"
                     value={formData.customer}
-                    onChange={(e) => setFormData((f) => ({ ...f, customer: e.target.value }))}
-                  >
-                    <option value="">None</option>
-                    {customerNamesByCategory.customer.length > 0 && (
-                      <optgroup label="Customers">
-                        {customerNamesByCategory.customer.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </optgroup>
-                    )}
-                    {customerNamesByCategory.project.length > 0 && (
-                      <optgroup label="Projects">
-                        {customerNamesByCategory.project.map((c) => <option key={c} value={c}>{c}</option>)}
-                      </optgroup>
-                    )}
-                  </select>
+                    onChange={(v) => setFormData((f) => ({ ...f, customer: v }))}
+                    options={[
+                      { group: null, items: [{ value: '', label: 'None' }] },
+                      ...(customerNamesByCategory.customer.length > 0
+                        ? [{ group: 'Customers', items: customerNamesByCategory.customer.map((c) => ({ value: c, label: c })) }]
+                        : []),
+                      ...(customerNamesByCategory.project.length > 0
+                        ? [{ group: 'Projects', items: customerNamesByCategory.project.map((c) => ({ value: c, label: c })) }]
+                        : []),
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="label text-xs">Start date</label>
@@ -358,28 +356,30 @@ export default function TasksPage() {
                 </div>
                 <div>
                   <label className="label text-xs">Status</label>
-                  <select
-                    className={`input text-sm font-medium ${STATUS_STYLES[formData.status]?.badge || STATUS_STYLES.planned.badge}`}
+                  <Select
+                    className={`text-sm font-medium ${STATUS_STYLES[formData.status]?.badge || STATUS_STYLES.planned.badge}`}
                     value={formData.status}
-                    onChange={(e) => setFormData((f) => ({ ...f, status: e.target.value }))}
-                  >
-                    <option value="planned">Planned</option>
-                    <option value="inProgress">In Progress</option>
-                    <option value="complete">Complete</option>
-                    <option value="blocked">Blocked</option>
-                  </select>
+                    onChange={(v) => setFormData((f) => ({ ...f, status: v }))}
+                    options={[
+                      { value: 'planned', label: 'Planned' },
+                      { value: 'inProgress', label: 'In Progress' },
+                      { value: 'complete', label: 'Complete' },
+                      { value: 'blocked', label: 'Blocked' },
+                    ]}
+                  />
                 </div>
                 {internalEnabled && (
                   <div>
                     <label className="label text-xs">Type</label>
-                    <select
-                      className="input text-sm"
+                    <Select
+                      className="text-sm"
                       value={formData.isInternal ? 'internal' : 'standard'}
-                      onChange={(e) => setFormData((f) => ({ ...f, isInternal: e.target.value === 'internal' }))}
-                    >
-                      <option value="standard">Standard</option>
-                      <option value="internal">Internal</option>
-                    </select>
+                      onChange={(v) => setFormData((f) => ({ ...f, isInternal: v === 'internal' }))}
+                      options={[
+                        { value: 'standard', label: 'Standard' },
+                        { value: 'internal', label: 'Internal' },
+                      ]}
+                    />
                   </div>
                 )}
               </div>
@@ -486,44 +486,57 @@ export default function TasksPage() {
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Customer / Project</label>
-            <select className="input text-xs py-1 min-w-[120px]" value={filterCustomer} onChange={(e) => setFilterCustomer(e.target.value)}>
-              <option value="">All</option>
-              {customers.filter((c) => custTypeMap[c.toLowerCase()] !== 'project').length > 0 && (
-                <optgroup label="Customers">
-                  {customers.filter((c) => custTypeMap[c.toLowerCase()] !== 'project').map((c) => <option key={c} value={c}>{c}</option>)}
-                </optgroup>
-              )}
-              {customers.filter((c) => custTypeMap[c.toLowerCase()] === 'project').length > 0 && (
-                <optgroup label="Projects">
-                  {customers.filter((c) => custTypeMap[c.toLowerCase()] === 'project').map((c) => <option key={c} value={c}>{c}</option>)}
-                </optgroup>
-              )}
-            </select>
+            <Select
+              className="text-xs py-1 min-w-[120px]"
+              value={filterCustomer}
+              onChange={(v) => setFilterCustomer(v)}
+              options={[
+                { group: null, items: [{ value: '', label: 'All' }] },
+                ...(customers.filter((c) => custTypeMap[c.toLowerCase()] !== 'project').length > 0
+                  ? [{ group: 'Customers', items: customers.filter((c) => custTypeMap[c.toLowerCase()] !== 'project').map((c) => ({ value: c, label: c })) }]
+                  : []),
+                ...(customers.filter((c) => custTypeMap[c.toLowerCase()] === 'project').length > 0
+                  ? [{ group: 'Projects', items: customers.filter((c) => custTypeMap[c.toLowerCase()] === 'project').map((c) => ({ value: c, label: c })) }]
+                  : []),
+              ]}
+            />
           </div>
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Assignee</label>
-            <select className="input text-xs py-1 min-w-[120px]" value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)}>
-              <option value="">All</option>
-              {assignees.map((a) => <option key={a} value={a}>{a}</option>)}
-            </select>
+            <Select
+              className="text-xs py-1 min-w-[120px]"
+              value={filterAssignee}
+              onChange={(v) => setFilterAssignee(v)}
+              options={[{ value: '', label: 'All' }, ...assignees.map((a) => ({ value: a, label: a }))]}
+            />
           </div>
           {internalEnabled && (
             <div className="flex items-center gap-1.5">
               <label className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Type</label>
-              <select className="input text-xs py-1 min-w-[100px]" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-                <option value="">All</option>
-                <option value="standard">Standard</option>
-                <option value="internal">Internal</option>
-              </select>
+              <Select
+                className="text-xs py-1 min-w-[100px]"
+                value={filterType}
+                onChange={(v) => setFilterType(v)}
+                options={[
+                  { value: '', label: 'All' },
+                  { value: 'standard', label: 'Standard' },
+                  { value: 'internal', label: 'Internal' },
+                ]}
+              />
             </div>
           )}
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Sort</label>
-            <select className="input text-xs py-1" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-              <option value="date">Date created</option>
-              <option value="alpha">Alphabetical</option>
-              <option value="status">Status</option>
-            </select>
+            <Select
+              className="text-xs py-1"
+              value={sortBy}
+              onChange={(v) => setSortBy(v)}
+              options={[
+                { value: 'date', label: 'Date created' },
+                { value: 'alpha', label: 'Alphabetical' },
+                { value: 'status', label: 'Status' },
+              ]}
+            />
           </div>
           <label className="flex items-center gap-1.5 cursor-pointer">
             <input
@@ -661,16 +674,17 @@ export default function TasksPage() {
 
                     {/* Status */}
                     <td className="px-3 py-3">
-                      <select
+                      <Select
                         className={`text-xs font-semibold rounded-full px-2.5 py-0.5 border-0 cursor-pointer ${st.badge}`}
                         value={task.status}
-                        onChange={(e) => setTaskStatus(task, e.target.value)}
-                      >
-                        <option value="planned">Planned</option>
-                        <option value="inProgress">In Progress</option>
-                        <option value="complete">Complete</option>
-                        <option value="blocked">Blocked</option>
-                      </select>
+                        onChange={(v) => setTaskStatus(task, v)}
+                        options={[
+                          { value: 'planned', label: 'Planned' },
+                          { value: 'inProgress', label: 'In Progress' },
+                          { value: 'complete', label: 'Complete' },
+                          { value: 'blocked', label: 'Blocked' },
+                        ]}
+                      />
                     </td>
 
                     {/* Actions */}

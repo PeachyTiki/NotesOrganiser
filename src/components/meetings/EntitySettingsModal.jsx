@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { X, Settings, LayoutTemplate, Globe, Download, Tag, Pencil, Folder } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { LANGUAGES } from '../../utils/i18n'
+import TemplatePickerDropdown from '../templates/TemplatePickerDropdown'
+import Select from '../ui/Select'
 
 const EXPORT_FORMATS = [
   { value: '', label: 'Inherit from system' },
@@ -25,7 +27,7 @@ const PRESET_COLORS = [
 ]
 
 export default function EntitySettingsModal({ entity, onClose }) {
-  const { templates, saveCustomer } = useApp()
+  const { saveCustomer } = useApp()
   const cs = entity.customerSettings || {}
 
   const [name, setName] = useState(entity.name || '')
@@ -154,16 +156,11 @@ export default function EntitySettingsModal({ entity, onClose }) {
               <LayoutTemplate size={13} className="text-accent shrink-0" />
               <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Default Template</p>
             </div>
-            <select
-              className="input"
+            <TemplatePickerDropdown
               value={form.defaultTemplateId}
-              onChange={(e) => set('defaultTemplateId', e.target.value)}
-            >
-              <option value="">None (inherit from system)</option>
-              {templates.map((tpl) => (
-                <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
-              ))}
-            </select>
+              onChange={(v) => set('defaultTemplateId', v)}
+              placeholder="None (inherit from system)"
+            />
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
               Applies when creating a new note or recurring meeting under this {entityLabel.toLowerCase()}, unless overridden per-meeting.
             </p>
@@ -175,16 +172,11 @@ export default function EntitySettingsModal({ entity, onClose }) {
               <Globe size={13} className="text-accent shrink-0" />
               <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Default Language</p>
             </div>
-            <select
-              className="input"
+            <Select
               value={form.defaultLanguage}
-              onChange={(e) => set('defaultLanguage', e.target.value)}
-            >
-              <option value="">None (inherit from system)</option>
-              {LANGUAGES.map((l) => (
-                <option key={l.code} value={l.code}>{l.label}</option>
-              ))}
-            </select>
+              onChange={(v) => set('defaultLanguage', v)}
+              options={[{ value: '', label: 'None (inherit from system)' }, ...LANGUAGES.map((l) => ({ value: l.code, label: l.label }))]}
+            />
           </div>
 
           {/* Export format */}
@@ -193,15 +185,11 @@ export default function EntitySettingsModal({ entity, onClose }) {
               <Download size={13} className="text-accent shrink-0" />
               <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Default Export Format</p>
             </div>
-            <select
-              className="input"
+            <Select
               value={form.defaultExportFormat}
-              onChange={(e) => set('defaultExportFormat', e.target.value)}
-            >
-              {EXPORT_FORMATS.map((f) => (
-                <option key={f.value} value={f.value}>{f.label}</option>
-              ))}
-            </select>
+              onChange={(v) => set('defaultExportFormat', v)}
+              options={EXPORT_FORMATS}
+            />
           </div>
 
           {/* Event type */}
@@ -230,29 +218,29 @@ export default function EntitySettingsModal({ entity, onClose }) {
             <div className="space-y-3">
               <div>
                 <label className="label">Formality</label>
-                <select
-                  className="input"
+                <Select
                   value={form.defaultAiFormality}
-                  onChange={(e) => set('defaultAiFormality', e.target.value)}
-                >
-                  <option value="">None (inherit from system)</option>
-                  <option value="casual">Casual &amp; friendly</option>
-                  <option value="professional">Professional</option>
-                  <option value="formal">Formal &amp; precise</option>
-                </select>
+                  onChange={(v) => set('defaultAiFormality', v)}
+                  options={[
+                    { value: '', label: 'None (inherit from system)' },
+                    { value: 'casual', label: 'Casual & friendly' },
+                    { value: 'professional', label: 'Professional' },
+                    { value: 'formal', label: 'Formal & precise' },
+                  ]}
+                />
               </div>
               <div>
                 <label className="label">Detail Level</label>
-                <select
-                  className="input"
+                <Select
                   value={form.defaultAiConciseness}
-                  onChange={(e) => set('defaultAiConciseness', e.target.value)}
-                >
-                  <option value="">None (inherit from system)</option>
-                  <option value="brief">Brief / Bullet points</option>
-                  <option value="balanced">Balanced</option>
-                  <option value="detailed">Detailed / Verbose</option>
-                </select>
+                  onChange={(v) => set('defaultAiConciseness', v)}
+                  options={[
+                    { value: '', label: 'None (inherit from system)' },
+                    { value: 'brief', label: 'Brief / Bullet points' },
+                    { value: 'balanced', label: 'Balanced' },
+                    { value: 'detailed', label: 'Detailed / Verbose' },
+                  ]}
+                />
               </div>
               <div>
                 <label className="label">Custom Instructions <span className="text-gray-400 font-normal text-xs">(optional)</span></label>

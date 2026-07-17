@@ -1,13 +1,50 @@
 import React, { useState, useRef } from 'react'
-import { X, User, Globe, Palette, Download, Database, Upload, Trash2, CheckCircle2, AlertTriangle, Brain, Lock, CheckSquare, Info, LayoutTemplate, Bell } from 'lucide-react'
+import { X, User, Globe, Palette, Download, Database, Upload, Trash2, CheckCircle2, AlertTriangle, Brain, Lock, CheckSquare, Info, LayoutTemplate, Bell, Folder } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { LANGUAGES, getSystemLanguage } from '../utils/i18n'
+import { arrayBufferToBase64 } from '../utils/export'
+import { useConfirm } from './ui/DialogProvider'
+import UnsavedChangesModal from './ui/UnsavedChangesModal'
 import Toggle from './Toggle'
+import TemplatePickerDropdown from './templates/TemplatePickerDropdown'
+import Select from './ui/Select'
 
 const EXPORT_FORMATS = [
   { value: 'pdf', label: 'PDF (.pdf)' },
   { value: 'png', label: 'Image (.png)' },
   { value: 'docx', label: 'Word (.docx)' },
+]
+
+const FORMALITY_OPTIONS = [
+  { value: 'casual', label: 'Casual & friendly' },
+  { value: 'professional', label: 'Professional' },
+  { value: 'formal', label: 'Formal & precise' },
+]
+
+const CONCISENESS_OPTIONS = [
+  { value: 'brief', label: 'Brief / Bullet points' },
+  { value: 'balanced', label: 'Balanced' },
+  { value: 'detailed', label: 'Detailed / Verbose' },
+]
+
+const TASK_NOTIFICATION_FREQUENCY_OPTIONS = [
+  { value: 30, label: 'Every 30 minutes' },
+  { value: 60, label: 'Every hour' },
+  { value: 120, label: 'Every 2 hours' },
+  { value: 240, label: 'Every 4 hours' },
+  { value: 480, label: 'Every 8 hours' },
+  { value: 'daily', label: 'Once a day' },
+  { value: 'weekly', label: 'Once a week' },
+]
+
+const WEEKLY_DAY_OPTIONS = [
+  { value: 0, label: 'Sunday' },
+  { value: 1, label: 'Monday' },
+  { value: 2, label: 'Tuesday' },
+  { value: 3, label: 'Wednesday' },
+  { value: 4, label: 'Thursday' },
+  { value: 5, label: 'Friday' },
+  { value: 6, label: 'Saturday' },
 ]
 
 function downloadJSON(obj, filename) {
@@ -22,18 +59,31 @@ function downloadJSON(obj, filename) {
 
 export default function SettingsModal({ onClose }) {
   const { settings, update, meetingNotes, recurringMeetings, templates, clearAllData, restoreFromBackup, createBackup } = useApp()
+  const confirm = useConfirm()
   const [form, setForm] = useState({ ...settings })
   const [restoreStatus, setRestoreStatus] = useState(null) // null | 'ok' | 'error'
   const [backupStatus, setBackupStatus] = useState(null)   // null | { ok, msg }
+  const [autoBackupStatus, setAutoBackupStatus] = useState(null) // null | { ok, msg }
   const [infoOpen, setInfoOpen] = useState({})
   const toggleInfo = (key) => setInfoOpen((p) => ({ ...p, [key]: !p[key] }))
   const fileRef = useRef(null)
+  const [showDiscardModal, setShowDiscardModal] = useState(false)
+
+  const dirty = JSON.stringify(form) !== JSON.stringify(settings)
 
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }))
 
   const handleSave = () => {
     update({ settings: { ...form } })
     onClose()
+  }
+
+  // Settings stays mounted on top of the app regardless of section nav, so
+  // the only ways to actually lose in-progress edits are its own close
+  // affordances (X / backdrop / Cancel) — route all of them through this.
+  const requestClose = () => {
+    if (!dirty) { onClose(); return }
+    setShowDiscardModal(true)
   }
 
   const handleBackup = async () => {
@@ -53,6 +103,30 @@ export default function SettingsModal({ onClose }) {
       const mm = String(now.getMonth() + 1).padStart(2, '0')
       const yyyy = now.getFullYear()
       downloadJSON(backup, `notes_organiser_backup_${dd}.${mm}.${yyyy}.json`)
+    }
+  }
+
+  const AUTO_BACKUP_FILENAME = 'notes_organiser_auto_backup.json'
+
+  const handleChooseAutoBackupFolder = async () => {
+    if (!window.electronAPI?.selectFolder) {
+      setAutoBackupStatus({ ok: false, msg: 'Only available in the desktop app.' })
+      return
+    }
+    const folder = await window.electronAPI.selectFolder()
+    if (folder) { set('autoBackupFolder', folder); setAutoBackupStatus(null) }
+  }
+
+  const handleBackupNowToFolder = async () => {
+    if (!form.autoBackupFolder || !window.electronAPI?.writeFile) return
+    try {
+      const bytes = new TextEncoder().encode(JSON.stringify(createBackup()))
+      const base64 = arrayBufferToBase64(bytes.buffer)
+      const result = await window.electronAPI.writeFile([form.autoBackupFolder], AUTO_BACKUP_FILENAME, base64)
+      if (result?.ok) setAutoBackupStatus({ ok: true, msg: `Backed up to ${result.filePath}` })
+      else setAutoBackupStatus({ ok: false, msg: 'Failed to back up: ' + (result?.error || 'unknown error') })
+    } catch (err) {
+      setAutoBackupStatus({ ok: false, msg: 'Failed to back up: ' + err.message })
     }
   }
 
@@ -81,8 +155,14 @@ export default function SettingsModal({ onClose }) {
     e.target.value = ''
   }
 
-  const handleClearData = () => {
-    if (!confirm('This will permanently delete all your notes, recurring meetings, and templates. Your settings will also reset.\n\nThis cannot be undone. Continue?')) return
+  const handleClearData = async () => {
+    const ok = await confirm({
+      title: 'Clear all data',
+      message: 'This will permanently delete all your notes, recurring meetings, and templates. Your settings will also reset.\n\nThis cannot be undone. Continue?',
+      confirmLabel: 'Clear Everything',
+      danger: true,
+    })
+    if (!ok) return
     clearAllData()
     onClose()
   }
@@ -96,12 +176,12 @@ export default function SettingsModal({ onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-md" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-md" onClick={requestClose} />
 
       <div className="relative dropdown-panel rounded-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/60 dark:border-white/10 sticky top-0 glass-pill z-10">
           <h2 className="font-semibold text-gray-900 dark:text-white">Settings</h2>
-          <button onClick={onClose} className="btn-ghost p-1.5"><X size={16} /></button>
+          <button onClick={requestClose} className="btn-ghost p-1.5"><X size={16} /></button>
         </div>
 
         <div className="px-5 py-5 space-y-6">
@@ -142,12 +222,14 @@ export default function SettingsModal({ onClose }) {
             </p>
             <div>
               <label className="label">Default Language</label>
-              <select className="input" value={form.language} onChange={(e) => set('language', e.target.value)}>
-                <option value="">System default ({systemLangLabel})</option>
-                {LANGUAGES.map((l) => (
-                  <option key={l.code} value={l.code}>{l.label}</option>
-                ))}
-              </select>
+              <Select
+                value={form.language}
+                onChange={(v) => set('language', v)}
+                options={[
+                  { value: '', label: `System default (${systemLangLabel})` },
+                  ...LANGUAGES.map((l) => ({ value: l.code, label: l.label })),
+                ]}
+              />
             </div>
           </div>
 
@@ -207,11 +289,11 @@ export default function SettingsModal({ onClose }) {
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
               Used when you click Export. You can still switch per note.
             </p>
-            <select className="input" value={form.exportFormat || 'pdf'} onChange={(e) => set('exportFormat', e.target.value)}>
-              {EXPORT_FORMATS.map((f) => (
-                <option key={f.value} value={f.value}>{f.label}</option>
-              ))}
-            </select>
+            <Select
+              value={form.exportFormat || 'pdf'}
+              onChange={(v) => set('exportFormat', v)}
+              options={EXPORT_FORMATS}
+            />
           </div>
 
           {/* Default template */}
@@ -224,16 +306,11 @@ export default function SettingsModal({ onClose }) {
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                 Applied to new notes when no template is set at meeting or customer level.
               </p>
-              <select
-                className="input"
+              <TemplatePickerDropdown
                 value={form.defaultTemplateId || ''}
-                onChange={(e) => set('defaultTemplateId', e.target.value)}
-              >
-                <option value="">None (plain style)</option>
-                {templates.map((tpl) => (
-                  <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
-                ))}
-              </select>
+                onChange={(v) => set('defaultTemplateId', v)}
+                placeholder="None (plain style)"
+              />
             </div>
           )}
 
@@ -249,19 +326,19 @@ export default function SettingsModal({ onClose }) {
             <div className="space-y-3">
               <div>
                 <label className="label">Formality</label>
-                <select className="input" value={form.aiTone?.formality || 'professional'} onChange={(e) => set('aiTone', { ...form.aiTone, formality: e.target.value })}>
-                  <option value="casual">Casual &amp; friendly</option>
-                  <option value="professional">Professional</option>
-                  <option value="formal">Formal &amp; precise</option>
-                </select>
+                <Select
+                  value={form.aiTone?.formality || 'professional'}
+                  onChange={(v) => set('aiTone', { ...form.aiTone, formality: v })}
+                  options={FORMALITY_OPTIONS}
+                />
               </div>
               <div>
                 <label className="label">Detail Level</label>
-                <select className="input" value={form.aiTone?.conciseness || 'balanced'} onChange={(e) => set('aiTone', { ...form.aiTone, conciseness: e.target.value })}>
-                  <option value="brief">Brief / Bullet points</option>
-                  <option value="balanced">Balanced</option>
-                  <option value="detailed">Detailed / Verbose</option>
-                </select>
+                <Select
+                  value={form.aiTone?.conciseness || 'balanced'}
+                  onChange={(v) => set('aiTone', { ...form.aiTone, conciseness: v })}
+                  options={CONCISENESS_OPTIONS}
+                />
               </div>
               <div>
                 <label className="label">Custom Instructions <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
@@ -407,15 +484,13 @@ export default function SettingsModal({ onClose }) {
               {form.taskNotifications?.enabled && (
                 <div>
                   <label className="label">Frequency</label>
-                  <select
-                    className="input"
+                  <Select
                     value={
                       form.taskNotifications?.mode === 'weekly' ? 'weekly'
                         : form.taskNotifications?.mode === 'daily' ? 'daily'
                         : (form.taskNotifications?.frequencyMinutes ?? 60)
                     }
-                    onChange={(e) => {
-                      const v = e.target.value
+                    onChange={(v) => {
                       if (v === 'daily') {
                         set('taskNotifications', { ...form.taskNotifications, mode: 'daily', dailyTime: form.taskNotifications?.dailyTime || '09:00' })
                       } else if (v === 'weekly') {
@@ -425,18 +500,11 @@ export default function SettingsModal({ onClose }) {
                           weeklyTime: form.taskNotifications?.weeklyTime || '09:00',
                         })
                       } else {
-                        set('taskNotifications', { ...form.taskNotifications, mode: 'interval', frequencyMinutes: +v })
+                        set('taskNotifications', { ...form.taskNotifications, mode: 'interval', frequencyMinutes: v })
                       }
                     }}
-                  >
-                    <option value={30}>Every 30 minutes</option>
-                    <option value={60}>Every hour</option>
-                    <option value={120}>Every 2 hours</option>
-                    <option value={240}>Every 4 hours</option>
-                    <option value={480}>Every 8 hours</option>
-                    <option value="daily">Once a day</option>
-                    <option value="weekly">Once a week</option>
-                  </select>
+                    options={TASK_NOTIFICATION_FREQUENCY_OPTIONS}
+                  />
 
                   {form.taskNotifications?.mode === 'daily' && (
                     <div className="mt-2">
@@ -454,19 +522,11 @@ export default function SettingsModal({ onClose }) {
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <div>
                         <label className="label text-xs">Day</label>
-                        <select
-                          className="input"
+                        <Select
                           value={form.taskNotifications?.weeklyDay ?? 1}
-                          onChange={(e) => set('taskNotifications', { ...form.taskNotifications, weeklyDay: +e.target.value })}
-                        >
-                          <option value={0}>Sunday</option>
-                          <option value={1}>Monday</option>
-                          <option value={2}>Tuesday</option>
-                          <option value={3}>Wednesday</option>
-                          <option value={4}>Thursday</option>
-                          <option value={5}>Friday</option>
-                          <option value={6}>Saturday</option>
-                        </select>
+                          onChange={(v) => set('taskNotifications', { ...form.taskNotifications, weeklyDay: v })}
+                          options={WEEKLY_DAY_OPTIONS}
+                        />
                       </div>
                       <div>
                         <label className="label text-xs">Time</label>
@@ -534,6 +594,49 @@ export default function SettingsModal({ onClose }) {
                 )}
               </div>
 
+              {/* Automatic daily backup */}
+              <div>
+                <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Automatic Daily Backup</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
+                  Pick a folder and Notes Organiser will silently save a full backup there once a day, overwriting the previous one each time.
+                </p>
+                {form.autoBackupFolder && (
+                  <div className="rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 px-3 py-2 mb-2">
+                    <p className="text-xs text-gray-600 dark:text-gray-300 break-all">{form.autoBackupFolder}</p>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleChooseAutoBackupFolder}
+                    className="flex-1 btn-secondary flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Folder size={14} /> {form.autoBackupFolder ? 'Change Folder' : 'Choose Folder'}
+                  </button>
+                  {form.autoBackupFolder && (
+                    <button
+                      onClick={() => set('autoBackupFolder', '')}
+                      className="btn-ghost text-sm text-red-500 hover:text-red-600"
+                    >
+                      Disable
+                    </button>
+                  )}
+                </div>
+                {form.autoBackupFolder && (
+                  <button
+                    onClick={handleBackupNowToFolder}
+                    className="w-full btn-secondary flex items-center justify-center gap-2 text-sm mt-2"
+                  >
+                    <Download size={14} /> Back Up Now
+                  </button>
+                )}
+                {autoBackupStatus && (
+                  <div className={`mt-2 flex items-start gap-2 text-xs ${autoBackupStatus.ok ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
+                    {autoBackupStatus.ok ? <CheckCircle2 size={13} className="shrink-0 mt-0.5" /> : <AlertTriangle size={13} className="shrink-0 mt-0.5" />}
+                    <span className="break-all">{autoBackupStatus.msg}</span>
+                  </div>
+                )}
+              </div>
+
               {/* Restore */}
               <div>
                 <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Restore</p>
@@ -584,12 +687,20 @@ export default function SettingsModal({ onClose }) {
 
         <div className="px-5 pb-5 border-t border-gray-100 dark:border-gray-800 pt-4 sticky bottom-0 bg-white dark:bg-gray-900">
           <div className="flex gap-2 justify-end mb-3">
-            <button className="btn-secondary" onClick={onClose}>Cancel</button>
+            <button className="btn-secondary" onClick={requestClose}>Cancel</button>
             <button className="btn-primary" onClick={handleSave}>Save Settings</button>
           </div>
           <p className="text-xs text-center text-gray-300 dark:text-gray-600">Created by Monteo Pietsch</p>
         </div>
       </div>
+
+      {showDiscardModal && (
+        <UnsavedChangesModal
+          onCancel={() => setShowDiscardModal(false)}
+          onDiscard={() => { setShowDiscardModal(false); onClose() }}
+          onSave={() => { setShowDiscardModal(false); handleSave() }}
+        />
+      )}
     </div>
   )
 }

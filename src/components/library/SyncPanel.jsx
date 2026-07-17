@@ -2,11 +2,13 @@ import React, { useState, useRef } from 'react'
 import { X, Plus, Trash2, RefreshCw, Folder, Check, AlertTriangle } from 'lucide-react'
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
+import { useConfirm, useAlert } from '../ui/DialogProvider'
 import {
   noteFilename, notePathParts, noteMatchesSync, syncFileKey, sortSyncConfigs,
 } from '../../utils/syncManager'
 import { renderNoteToPdfBuffer, arrayBufferToBase64 } from '../../utils/export'
 import { makeT } from '../../utils/i18n'
+import Select from '../ui/Select'
 
 const LEVEL_META = {
   A: { badge: 'A', desc: 'All Notes',   color: 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' },
@@ -19,6 +21,8 @@ export default function SyncPanel({ onClose }) {
     syncConfigs, syncFileMap, meetingNotes, recurringMeetings, templates,
     customers, settings, saveSyncConfig, deleteSyncConfig, updateSyncFileMap,
   } = useApp()
+  const confirm = useConfirm()
+  const alertUser = useAlert()
 
   const sorted = sortSyncConfigs(syncConfigs)
   const internalNotesEnabled = !!settings?.internalNotesEnabled
@@ -34,7 +38,7 @@ export default function SyncPanel({ onClose }) {
 
   const handleSelectFolder = async () => {
     if (!window.electronAPI?.selectFolder) {
-      alert('Folder selection is only available in the desktop app.')
+      alertUser('Folder selection is only available in the desktop app.')
       return
     }
     const folder = await window.electronAPI.selectFolder()
@@ -99,7 +103,7 @@ export default function SyncPanel({ onClose }) {
 
   const handleExecuteAll = async () => {
     if (!window.electronAPI) {
-      alert('Sync is only available in the desktop app.')
+      alertUser('Sync is only available in the desktop app.')
       return
     }
     cancelRef.current = false
@@ -233,9 +237,13 @@ export default function SyncPanel({ onClose }) {
                       </p>
                     </div>
                     <button
-                      onClick={() => {
-                        if (confirm(`Remove sync for "${cfg.scopeLabel}"?\n\nAlready-synced files will not be deleted.`))
-                          deleteSyncConfig(cfg.id)
+                      onClick={async () => {
+                        const ok = await confirm({
+                          message: `Remove sync for "${cfg.scopeLabel}"?\n\nAlready-synced files will not be deleted.`,
+                          confirmLabel: 'Remove',
+                          danger: true,
+                        })
+                        if (ok) deleteSyncConfig(cfg.id)
                       }}
                       className="p-1 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 transition-colors shrink-0"
                     >
@@ -279,16 +287,12 @@ export default function SyncPanel({ onClose }) {
               {addLevel === 'C' && (
                 <div>
                   <label className="label text-xs">Customer</label>
-                  <select
-                    className="input text-xs"
+                  <Select
+                    className="text-xs"
                     value={addScopeId}
-                    onChange={(e) => setAddScopeId(e.target.value)}
-                  >
-                    <option value="">Select customer…</option>
-                    {customerOptions.map((o) => (
-                      <option key={o.id} value={o.id}>{o.label}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setAddScopeId(v)}
+                    options={[{ value: '', label: 'Select customer…' }, ...customerOptions.map((o) => ({ value: o.id, label: o.label }))]}
+                  />
                 </div>
               )}
 
@@ -296,32 +300,26 @@ export default function SyncPanel({ onClose }) {
                 <>
                   <div>
                     <label className="label text-xs">Customer</label>
-                    <select
-                      className="input text-xs"
+                    <Select
+                      className="text-xs"
                       value={addScopeCustomer}
-                      onChange={(e) => { setAddScopeCustomer(e.target.value); setAddScopeId('') }}
-                    >
-                      <option value="">All customers…</option>
-                      {customerOptions.map((o) => (
-                        <option key={o.id} value={o.id}>{o.label}</option>
-                      ))}
-                    </select>
+                      onChange={(v) => { setAddScopeCustomer(v); setAddScopeId('') }}
+                      options={[{ value: '', label: 'All customers…' }, ...customerOptions.map((o) => ({ value: o.id, label: o.label }))]}
+                    />
                   </div>
                   <div>
                     <label className="label text-xs">Meeting Series</label>
-                    <select
-                      className="input text-xs"
+                    <Select
+                      className="text-xs"
                       value={addScopeId}
-                      onChange={(e) => setAddScopeId(e.target.value)}
-                    >
-                      <option value="">Select meeting series…</option>
-                      {meetingOptions
-                        .filter((o) => !addScopeCustomer || o.customer === addScopeCustomer)
-                        .map((o) => (
-                          <option key={o.id} value={o.id}>{o.label}</option>
-                        ))
-                      }
-                    </select>
+                      onChange={(v) => setAddScopeId(v)}
+                      options={[
+                        { value: '', label: 'Select meeting series…' },
+                        ...meetingOptions
+                          .filter((o) => !addScopeCustomer || o.customer === addScopeCustomer)
+                          .map((o) => ({ value: o.id, label: o.label })),
+                      ]}
+                    />
                   </div>
                 </>
               )}

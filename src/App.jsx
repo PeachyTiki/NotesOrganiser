@@ -1,5 +1,6 @@
 import React from 'react'
 import { AppProvider, useApp } from './context/AppContext'
+import { DialogProvider } from './components/ui/DialogProvider'
 import Layout from './components/Layout'
 import TemplatesPage from './components/templates/TemplatesPage'
 import MeetingsPage from './components/meetings/MeetingsPage'
@@ -18,10 +19,12 @@ function PageRouter() {
 export default function App() {
   return (
     <AppProvider>
-      <TaskNotifications />
-      <Layout>
-        <PageRouter />
-      </Layout>
+      <DialogProvider>
+        <TaskNotifications />
+        <Layout>
+          <PageRouter />
+        </Layout>
+      </DialogProvider>
     </AppProvider>
   )
 }

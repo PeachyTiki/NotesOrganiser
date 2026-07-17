@@ -105,11 +105,13 @@ export async function exportNoteAsWord(note, template, chartImages, t) {
   return buildWordDoc(note, template, chartImages, t)
 }
 
-// Single-note export from the library (captures charts on demand)
-export async function exportSingleNote(note, template, format, filename) {
+// Single-note export from the library (captures charts on demand).
+// `notify` defaults to window.alert but callers should pass the in-app
+// useAlert() hook instead — see DialogProvider.jsx for why.
+export async function exportSingleNote(note, template, format, filename, notify = window.alert) {
   if (format === 'png') {
     if (!note.exportData) {
-      alert('No image preview for this note yet.\n\nOpen the note and click Export to generate one first.')
+      notify('No image preview for this note yet.\n\nOpen the note and click Export to generate one first.')
       return false
     }
     downloadDataURL(note.exportData, filename)
@@ -181,7 +183,7 @@ export function formatDateForFilename(dateStr) {
 // format: 'pdf' | 'docx' | 'png'
 // templates: array of all templates (for looking up accent/logo per note)
 
-export async function bulkExportToZip(exportGroups, templates, format, zipFilename, level) {
+export async function bulkExportToZip(exportGroups, templates, format, zipFilename, level, notify = window.alert) {
   const JSZip = (await import('jszip')).default
   const zip = new JSZip()
 
@@ -229,9 +231,9 @@ export async function bulkExportToZip(exportGroups, templates, format, zipFilena
 
   if (added === 0) {
     if (format === 'png') {
-      alert('No notes have preview images yet.\n\nOpen each note and click Export to generate a preview first.')
+      notify('No notes have preview images yet.\n\nOpen each note and click Export to generate a preview first.')
     } else {
-      alert('No notes to export.')
+      notify('No notes to export.')
     }
     return false
   }
@@ -240,7 +242,7 @@ export async function bulkExportToZip(exportGroups, templates, format, zipFilena
   downloadBlob(zipBlob, zipFilename)
 
   if (skipped > 0 && format === 'png') {
-    alert(`Downloaded ${added} image${added !== 1 ? 's' : ''}.\n${skipped} skipped — open those notes and click Export to generate previews.`)
+    notify(`Downloaded ${added} image${added !== 1 ? 's' : ''}.\n${skipped} skipped — open those notes and click Export to generate previews.`)
   }
 
   return true
