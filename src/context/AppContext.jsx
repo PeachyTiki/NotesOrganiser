@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import { applyAccentVars } from '../utils/colorUtils'
 import { makeT, getSystemLanguage } from '../utils/i18n'
 import { renderNoteToPdfBuffer, arrayBufferToBase64 } from '../utils/export'
+import { isBackupDue, scheduledBackupFilename } from '../utils/backupSchedule'
 import { noteMatchesSync, noteFilename, notePathParts, syncFileKey } from '../utils/syncManager'
 
 const STORAGE_KEY = 'notes_organiser_v1'
@@ -41,6 +42,7 @@ const defaultState = {
     aiPromptMode: 'download',
     defaultTemplateId: '',
     autoBackupFolder: '',
+    scheduledBackup: { enabled: false, folder: '', frequency: 'weekly', lastRunAt: '' },
   },
 }
 
@@ -430,6 +432,44 @@ export function AppProvider({ children }) {
     const timeout = setTimeout(run, 10_000) // shortly after launch, not blocking startup
     const interval = setInterval(run, 24 * 60 * 60 * 1000)
     return () => { clearTimeout(timeout); clearInterval(interval) }
+  }, [])
+
+  // User-configured scheduled full backup (Settings → Scheduled Full Backup).
+  // Writes a complete, dated JSON snapshot of everything (notes, tasks,
+  // customers, templates incl. logos, settings) to a chosen folder at 12:00
+  // local time, at the chosen cadence (daily/weekly/monthly). If the app wasn't
+  // running at noon it catches up the next time it's open — cadence and
+  // catch-up logic live in backupSchedule.js. Kept in a ref so editing the
+  // config in Settings doesn't restart the timers.
+  const scheduledBackupRef = useRef(state.settings.scheduledBackup)
+  scheduledBackupRef.current = state.settings.scheduledBackup
+  useEffect(() => {
+    if (!window.electronAPI?.writeFile) return
+    let cancelled = false
+    const run = async () => {
+      const cfg = scheduledBackupRef.current
+      if (!cfg?.enabled || !cfg.folder) return
+      if (!isBackupDue(cfg.frequency, cfg.lastRunAt)) return
+      try {
+        const bytes = new TextEncoder().encode(JSON.stringify(createBackupRef.current()))
+        const base64 = arrayBufferToBase64(bytes.buffer)
+        const result = await window.electronAPI.writeFile([cfg.folder], scheduledBackupFilename(), base64)
+        if (!cancelled && result?.ok) {
+          setState((s) => ({
+            ...s,
+            settings: {
+              ...s.settings,
+              scheduledBackup: { ...(s.settings.scheduledBackup || {}), lastRunAt: new Date().toISOString() },
+            },
+          }))
+        }
+      } catch {
+        // best-effort — will retry on the next tick
+      }
+    }
+    const timeout = setTimeout(run, 12_000) // shortly after launch
+    const interval = setInterval(run, 15 * 60 * 1000) // catch the noon crossing while the app stays open
+    return () => { cancelled = true; clearTimeout(timeout); clearInterval(interval) }
   }, [])
 
   const triggerNoteSync = (note) => {

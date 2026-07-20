@@ -3,6 +3,7 @@ import { X, User, Globe, Palette, Download, Database, Upload, Trash2, CheckCircl
 import { useApp } from '../context/AppContext'
 import { LANGUAGES, getSystemLanguage } from '../utils/i18n'
 import { arrayBufferToBase64 } from '../utils/export'
+import { scheduledBackupFilename } from '../utils/backupSchedule'
 import { useConfirm } from './ui/DialogProvider'
 import UnsavedChangesModal from './ui/UnsavedChangesModal'
 import Toggle from './Toggle'
@@ -37,6 +38,12 @@ const TASK_NOTIFICATION_FREQUENCY_OPTIONS = [
   { value: 'weekly', label: 'Once a week' },
 ]
 
+const BACKUP_FREQUENCY_OPTIONS = [
+  { value: 'daily', label: 'Once a day' },
+  { value: 'weekly', label: 'Once a week' },
+  { value: 'monthly', label: 'Once a month' },
+]
+
 const WEEKLY_DAY_OPTIONS = [
   { value: 0, label: 'Sunday' },
   { value: 1, label: 'Monday' },
@@ -64,6 +71,7 @@ export default function SettingsModal({ onClose }) {
   const [restoreStatus, setRestoreStatus] = useState(null) // null | 'ok' | 'error'
   const [backupStatus, setBackupStatus] = useState(null)   // null | { ok, msg }
   const [autoBackupStatus, setAutoBackupStatus] = useState(null) // null | { ok, msg }
+  const [scheduledStatus, setScheduledStatus] = useState(null) // null | { ok, msg }
   const [infoOpen, setInfoOpen] = useState({})
   const toggleInfo = (key) => setInfoOpen((p) => ({ ...p, [key]: !p[key] }))
   const fileRef = useRef(null)
@@ -74,7 +82,16 @@ export default function SettingsModal({ onClose }) {
   const set = (key, val) => setForm((f) => ({ ...f, [key]: val }))
 
   const handleSave = () => {
-    update({ settings: { ...form } })
+    // The scheduled-backup runner writes `lastRunAt` straight to live settings
+    // in the background; don't let this modal's older form copy clobber it.
+    const merged = { ...form }
+    if (form.scheduledBackup) {
+      merged.scheduledBackup = {
+        ...form.scheduledBackup,
+        lastRunAt: settings.scheduledBackup?.lastRunAt ?? form.scheduledBackup.lastRunAt,
+      }
+    }
+    update({ settings: merged })
     onClose()
   }
 
@@ -127,6 +144,32 @@ export default function SettingsModal({ onClose }) {
       else setAutoBackupStatus({ ok: false, msg: 'Failed to back up: ' + (result?.error || 'unknown error') })
     } catch (err) {
       setAutoBackupStatus({ ok: false, msg: 'Failed to back up: ' + err.message })
+    }
+  }
+
+  // ── Scheduled full backup (configurable cadence, runs at 12:00 local) ──
+  const sb = form.scheduledBackup || { enabled: false, folder: '', frequency: 'weekly', lastRunAt: '' }
+  const setSB = (patch) => set('scheduledBackup', { ...sb, ...patch })
+
+  const handleChooseScheduledFolder = async () => {
+    if (!window.electronAPI?.selectFolder) {
+      setScheduledStatus({ ok: false, msg: 'Only available in the desktop app.' })
+      return
+    }
+    const folder = await window.electronAPI.selectFolder()
+    if (folder) { setSB({ folder, enabled: true }); setScheduledStatus(null) }
+  }
+
+  const handleScheduledBackupNow = async () => {
+    if (!sb.folder || !window.electronAPI?.writeFile) return
+    try {
+      const bytes = new TextEncoder().encode(JSON.stringify(createBackup()))
+      const base64 = arrayBufferToBase64(bytes.buffer)
+      const result = await window.electronAPI.writeFile([sb.folder], scheduledBackupFilename(), base64)
+      if (result?.ok) setScheduledStatus({ ok: true, msg: `Backed up to ${result.filePath}` })
+      else setScheduledStatus({ ok: false, msg: 'Failed to back up: ' + (result?.error || 'unknown error') })
+    } catch (err) {
+      setScheduledStatus({ ok: false, msg: 'Failed to back up: ' + err.message })
     }
   }
 
@@ -633,6 +676,64 @@ export default function SettingsModal({ onClose }) {
                   <div className={`mt-2 flex items-start gap-2 text-xs ${autoBackupStatus.ok ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
                     {autoBackupStatus.ok ? <CheckCircle2 size={13} className="shrink-0 mt-0.5" /> : <AlertTriangle size={13} className="shrink-0 mt-0.5" />}
                     <span className="break-all">{autoBackupStatus.msg}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Scheduled full backup */}
+              <div>
+                <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Scheduled Full Backup</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
+                  Save a complete, dated backup of everything — notes, tasks, customers, templates (including logos), and all settings — to a folder you choose, automatically at 12:00 midday. If your computer is off at that time, it runs the next time you open the app.
+                </p>
+                {sb.folder && (
+                  <div className="rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700 px-3 py-2 mb-2">
+                    <p className="text-xs text-gray-600 dark:text-gray-300 break-all">{sb.folder}</p>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleChooseScheduledFolder}
+                    className="flex-1 btn-secondary flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Folder size={14} /> {sb.folder ? 'Change Folder' : 'Choose Folder'}
+                  </button>
+                  {sb.folder && (
+                    <button
+                      onClick={() => setSB({ enabled: false, folder: '' })}
+                      className="btn-ghost text-sm text-red-500 hover:text-red-600"
+                    >
+                      Disable
+                    </button>
+                  )}
+                </div>
+                {sb.folder && (
+                  <>
+                    <div className="mt-2">
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Frequency</label>
+                      <Select
+                        value={sb.frequency || 'weekly'}
+                        onChange={(v) => setSB({ frequency: v })}
+                        options={BACKUP_FREQUENCY_OPTIONS}
+                      />
+                    </div>
+                    <button
+                      onClick={handleScheduledBackupNow}
+                      className="w-full btn-secondary flex items-center justify-center gap-2 text-sm mt-2"
+                    >
+                      <Download size={14} /> Back Up Now
+                    </button>
+                    {sb.lastRunAt && (
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        Last automatic backup: {new Date(sb.lastRunAt).toLocaleString()}
+                      </p>
+                    )}
+                  </>
+                )}
+                {scheduledStatus && (
+                  <div className={`mt-2 flex items-start gap-2 text-xs ${scheduledStatus.ok ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
+                    {scheduledStatus.ok ? <CheckCircle2 size={13} className="shrink-0 mt-0.5" /> : <AlertTriangle size={13} className="shrink-0 mt-0.5" />}
+                    <span className="break-all">{scheduledStatus.msg}</span>
                   </div>
                 )}
               </div>
