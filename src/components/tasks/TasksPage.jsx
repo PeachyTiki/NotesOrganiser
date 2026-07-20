@@ -3,6 +3,7 @@ import { CheckSquare, Filter, ChevronDown, ChevronUp, Plus, Brain, Download, Cli
 import { v4 as uuid } from 'uuid'
 import { useApp } from '../../context/AppContext'
 import { buildStandaloneTasksAIPrompt } from '../../utils/aiPrompt'
+import { copyPromptToClipboard } from '../../utils/aiDelivery'
 import { downloadBlob } from '../../utils/export'
 import { buildAllTasks, buildCustomerTypeMap, taskCategory } from '../../utils/taskUtils'
 import Select from '../ui/Select'
@@ -62,7 +63,7 @@ export default function TasksPage() {
   const today = new Date().toISOString().slice(0, 10)
   const internalEnabled = !!settings?.internalNotesEnabled
   const aiPromptMode = settings?.aiPromptMode || 'download'
-  const isClipboard = aiPromptMode === 'clipboard'
+  const isClipboard = aiPromptMode !== 'download'
 
   const flashSuccess = (msg) => {
     setAiSuccess(msg)
@@ -175,7 +176,7 @@ export default function TasksPage() {
     const prompt = buildStandaloneTasksAIPrompt(aiRawText, existing, settings, aiPromptMode, customerNames)
     const json = JSON.stringify(prompt, null, 2)
     if (isClipboard) {
-      navigator.clipboard.writeText(json).catch(() => {})
+      copyPromptToClipboard(json, aiPromptMode)
       flashSuccess('Prompt copied to clipboard.')
     } else {
       const blob = new Blob([json], { type: 'application/json' })

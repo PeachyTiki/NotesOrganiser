@@ -429,7 +429,7 @@ export default function SettingsModal({ onClose }) {
             </div>
             {infoOpen.aiMode && (
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Controls how AI prompts are exported and how you import AI responses. <strong>Download mode</strong> saves/loads JSON files. <strong>Clipboard mode</strong> copies/pastes directly — the AI is instructed to output only raw JSON with no extra text, making it faster to use with chat interfaces.
+                Controls how AI prompts are exported and how you import AI responses. <strong>Download mode</strong> saves/loads JSON files. <strong>Copy / Paste</strong> copies the prompt to your clipboard. <strong>Copy &amp; Open Claude</strong> does the same and opens a fresh Claude chat in your browser, so it's one click — then just paste, and paste the response back here. (It never automates Claude for you; you stay signed in and in control.)
               </p>
             )}
             <div className="flex items-center gap-2 border border-gray-200 dark:border-gray-600 rounded-lg p-1 w-fit">
@@ -452,6 +452,16 @@ export default function SettingsModal({ onClose }) {
                 }`}
               >
                 Copy / Paste
+              </button>
+              <button
+                onClick={() => set('aiPromptMode', 'clipboard-open')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  form.aiPromptMode === 'clipboard-open'
+                    ? 'bg-accent text-[color:var(--accent-contrast)]'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                Copy &amp; Open Claude
               </button>
             </div>
           </div>

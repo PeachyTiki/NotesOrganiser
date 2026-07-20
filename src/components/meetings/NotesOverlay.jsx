@@ -7,6 +7,7 @@ import {
   importCombinedNotesJsonResponse,
   importCombinedNotesAndTasksJsonResponse,
 } from '../../utils/aiPrompt'
+import { copyPromptToClipboard } from '../../utils/aiDelivery'
 import { markdownToHtml, htmlToPlainText } from '../../utils/markdownToHtml'
 import { downloadBlob, formatDateForFilename } from '../../utils/export'
 import RichTextEditor from './sections/RichTextEditor'
@@ -75,7 +76,7 @@ function NotesColumn({ label, badgeClass, section, onChange, tone, onToneChange,
   const [importOpen, setImportOpen] = useState(false)
   const [importText, setImportText] = useState('')
   const [importError, setImportError] = useState('')
-  const isClipboard = aiPromptMode === 'clipboard'
+  const isClipboard = aiPromptMode !== 'download'
 
   const handleApply = () => {
     const stripped = importText.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
@@ -167,7 +168,7 @@ function TasksColumn({ label, badgeClass, section, onChange, onStatusChange, onE
   const [importText, setImportText] = useState('')
   const [importError, setImportError] = useState('')
   const items = section?.items || []
-  const isClipboard = aiPromptMode === 'clipboard'
+  const isClipboard = aiPromptMode !== 'download'
 
   const addTask = () => onChange({
     items: [...items, { id: uuid(), text: '', assignee: settings?.yourName || '', status: 'planned', startDate: '', endDate: '', createdAt: new Date().toISOString() }],
@@ -367,8 +368,8 @@ export default function NotesOverlay({
       const effectiveSection = section || { id: 'tmp', label: 'Notes', content: '' }
       const prompt = buildSectionAIPrompt(effectiveSection, note || {}, meetingNotes || [], tone, contextDepth, aiPromptMode)
       const json = JSON.stringify(prompt, null, 2)
-      if (aiPromptMode === 'clipboard') {
-        navigator.clipboard.writeText(json).catch(() => {})
+      if (aiPromptMode !== 'download') {
+        copyPromptToClipboard(json, aiPromptMode)
         flash(setSuccess, successTimer, 'Prompt copied to clipboard.')
       } else {
         const blob = new Blob([json], { type: 'application/json' })
@@ -407,11 +408,11 @@ export default function NotesOverlay({
         'Required format: {"tasks": [{"text": "task description", "assignee": "name or empty string", "status": "planned", "startDate": "YYYY-MM-DD or empty string", "endDate": "YYYY-MM-DD or empty string"}]}',
         'Status values: planned, inProgress, complete, blocked.',
         'startDate and endDate: fill in if a start date or deadline is mentioned for the task, otherwise use empty string.',
-        ...(aiPromptMode === 'clipboard' ? ['ZERO additional text. Start with { and end with }.'] : []),
+        ...(aiPromptMode !== 'download' ? ['ZERO additional text. Start with { and end with }.'] : []),
       ].join(' ')
       const json = JSON.stringify(prompt, null, 2)
-      if (aiPromptMode === 'clipboard') {
-        navigator.clipboard.writeText(json).catch(() => {})
+      if (aiPromptMode !== 'download') {
+        copyPromptToClipboard(json, aiPromptMode)
         flash(setSuccess, successTimer, 'Tasks prompt copied to clipboard.')
       } else {
         const blob = new Blob([json], { type: 'application/json' })
@@ -440,8 +441,8 @@ export default function NotesOverlay({
         internalExtract,
       )
       const json = JSON.stringify(prompt, null, 2)
-      if (aiPromptMode === 'clipboard') {
-        navigator.clipboard.writeText(json).catch(() => {})
+      if (aiPromptMode !== 'download') {
+        copyPromptToClipboard(json, aiPromptMode)
         flash(setSuccess, successTimer, 'Master prompt copied to clipboard.')
       } else {
         const blob = new Blob([json], { type: 'application/json' })
@@ -614,7 +615,7 @@ export default function NotesOverlay({
       {/* Footer */}
       <div className="border-t border-gray-200 dark:border-gray-700 px-6 py-4 shrink-0 space-y-3">
         <div className="flex items-center gap-3 flex-wrap">
-          {aiPromptMode === 'clipboard' ? (
+          {aiPromptMode !== 'download' ? (
             <button
               onClick={() => { handleExportMaster(); setImportOpen(true) }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950 border border-purple-200 dark:border-purple-800 transition-colors"
@@ -655,7 +656,7 @@ export default function NotesOverlay({
                   ? '{"standard_notes": {"content": "..."}, "standard_tasks": [{"text":"...", "status":"planned"}]}'
                   : '{"standard": {"content": "..."}, "internal": {"content": "..."}}'
               }
-              autoFocus={aiPromptMode === 'clipboard'}
+              autoFocus={aiPromptMode !== 'download'}
             />
             <button onClick={handleApplyMaster} className="btn-primary flex items-center gap-1.5 text-xs py-1 px-3">
               <Brain size={12} /> Apply

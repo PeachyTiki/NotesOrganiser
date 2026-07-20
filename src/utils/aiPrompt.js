@@ -1,5 +1,9 @@
 import { LANGUAGES } from './i18n'
 
+// Prompt "modes": 'download' vs the copy-paste family ('clipboard' and
+// 'clipboard-open'). The terse "raw JSON only" instructions apply to every
+// copy-paste mode — hence the `!== 'download'` checks below.
+
 function resolveLanguageName(code) {
   if (!code) return null
   const found = LANGUAGES.find((l) => l.code === code)
@@ -97,7 +101,7 @@ export function buildSectionAIPrompt(section, note, allMeetingNotes, toneSetting
         'Inside the "content" string, use markdown: ## for headings, - for bullets, - [ ] for open tasks, - [x] for done tasks, **bold** for key terms.',
         'Example: {"content": "## Meeting Summary\\n- Discussed Q3 roadmap\\n- **Decision:** Launch in October\\n\\n## Action Items\\n- [ ] Alice: Write spec by Friday"}',
         'If the transcript is absent or unclear, ask the user in plain text (not JSON) to provide their notes.',
-        ...(promptMode === 'clipboard' ? ['ZERO additional text. Your entire message must be only the JSON object. Do not greet, do not explain, do not use code fences. Start your response with { and end with }.'] : []),
+        ...(promptMode !== 'download' ? ['ZERO additional text. Your entire message must be only the JSON object. Do not greet, do not explain, do not use code fences. Start your response with { and end with }.'] : []),
       ].join(' '),
       tone: buildToneString(toneSettings),
     },
@@ -360,7 +364,7 @@ export function buildCombinedNotesAIPrompt(standardSection, internalSection, not
         `Required format: ${outputExample}`,
         'Inside content strings, use markdown: ## for headings, - for bullets, - [ ] for open tasks, - [x] for done tasks, **bold** for key terms.',
         'If the transcript is absent, ask in plain text (not JSON) for the user to provide notes.',
-        ...(promptMode === 'clipboard' ? ['ZERO additional text. Your entire message must be only the JSON object. Do not greet, do not explain, do not use code fences. Start your response with { and end with }.'] : []),
+        ...(promptMode !== 'download' ? ['ZERO additional text. Your entire message must be only the JSON object. Do not greet, do not explain, do not use code fences. Start your response with { and end with }.'] : []),
       ].join(' '),
     },
     meeting_context: {
@@ -505,7 +509,7 @@ export function buildCombinedNotesAndTasksAIPrompt(
         `Required format: ${outputExample}`,
         'For notes content strings, use markdown: ## headings, - bullets, **bold** for key terms.',
         'For task arrays, return ONLY new tasks not already in existing_items. Each item must have: text, assignee (string or empty), status (planned/inProgress/complete/blocked), startDate (YYYY-MM-DD or empty string — set if a start date is mentioned for this task), endDate (YYYY-MM-DD or empty string — set if a deadline or due date is mentioned for this task).',
-        ...(promptMode === 'clipboard' ? ['ZERO additional text. Start with { and end with }.'] : []),
+        ...(promptMode !== 'download' ? ['ZERO additional text. Start with { and end with }.'] : []),
       ].join(' '),
     },
     meeting_context: {
@@ -578,7 +582,7 @@ export function buildStandaloneTasksAIPrompt(rawText, existingTasks = [], settin
         `Required format: {"tasks": [{"text": "task description", "assignee": "name or empty string", "status": "planned", "startDate": "YYYY-MM-DD or empty string", "endDate": "YYYY-MM-DD or empty string"${customerNames.length > 0 ? ', "customer": "exact name from known_customers or empty string"' : ''}${internalEnabled ? ', "type": "standard or internal"' : ''}}]}`,
         'Status values: planned, inProgress, complete, blocked.',
         'startDate and endDate: fill in if a start date or deadline is mentioned for the task, otherwise use empty string.',
-        ...(promptMode === 'clipboard' ? ['ZERO additional text. Start with { and end with }.'] : []),
+        ...(promptMode !== 'download' ? ['ZERO additional text. Start with { and end with }.'] : []),
       ].join(' '),
       tone: buildToneString(settings?.aiTone),
     },

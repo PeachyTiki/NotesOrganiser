@@ -2,6 +2,7 @@ import React, { useState, useRef, useContext, useEffect } from 'react'
 import { Brain, Download, ChevronDown, ChevronRight, Settings2, Clipboard } from 'lucide-react'
 import { SectionContext } from '../SectionList'
 import { buildSectionAIPrompt, importSectionJsonResponse } from '../../../utils/aiPrompt'
+import { copyPromptToClipboard } from '../../../utils/aiDelivery'
 import { markdownToHtml, htmlToPlainText } from '../../../utils/markdownToHtml'
 import RichTextEditor from './RichTextEditor'
 import { downloadBlob, formatDateForFilename } from '../../../utils/export'
@@ -56,8 +57,8 @@ export default function NotesSection({ section, onChange, isFirstNotesSection })
     try {
       const prompt = buildSectionAIPrompt(section, note || {}, meetingNotes || [], tone, contextDepth ?? 4, aiPromptMode)
       const json = JSON.stringify(prompt, null, 2)
-      if (aiPromptMode === 'clipboard') {
-        navigator.clipboard.writeText(json).then(() => {
+      if (aiPromptMode !== 'download') {
+        copyPromptToClipboard(json, aiPromptMode).then(() => {
           setImportOpen(true)
           flash(setSuccess, successTimer, 'Prompt copied — paste it in your AI assistant, then come back and paste the response below.')
         }).catch(() => {
@@ -122,13 +123,13 @@ export default function NotesSection({ section, onChange, isFirstNotesSection })
           onClick={handleExport}
           className="btn-secondary flex items-center gap-1.5 text-xs py-1 px-3"
         >
-          {aiPromptMode === 'clipboard'
+          {aiPromptMode !== 'download'
             ? <><Clipboard size={12} /> Copy Prompt</>
             : <><Download size={12} /> Export JSON</>
           }
         </button>
 
-        {aiPromptMode !== 'clipboard' && (
+        {aiPromptMode === 'download' && (
           <button
             onClick={() => setImportOpen((v) => !v)}
             className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
@@ -216,7 +217,7 @@ export default function NotesSection({ section, onChange, isFirstNotesSection })
         <div className="border border-gray-100 dark:border-gray-700 rounded-lg p-3 space-y-2.5">
           <div>
             <label className="label text-xs">Paste AI response</label>
-            {aiPromptMode === 'clipboard' && (
+            {aiPromptMode !== 'download' && (
               <button
                 onClick={() => {
                   navigator.clipboard.readText().then((text) => {
