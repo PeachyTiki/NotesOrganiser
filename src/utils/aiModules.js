@@ -91,6 +91,40 @@ export function sectionsFromModuleSpecs(specs) {
   return arr(specs).map(buildOne).filter(Boolean)
 }
 
+// Inverse of buildOne: turn live section objects into the same spec shape, so a
+// whole note can be serialised for an AI edit and the reply rebuilt with
+// sectionsFromModuleSpecs. Lossless enough for editing (ids/colours are dropped
+// and regenerated on rebuild).
+export function serializeSectionsForEdit(sections) {
+  return arr(sections).map((s) => {
+    const base = { type: s.type, label: str(s.label) }
+    switch (s.type) {
+      case 'text':
+      case 'notes':
+        return { ...base, content: str(s.content) }
+      case 'topics':
+        return { ...base, items: arr(s.items).map((i) => ({ topic: str(i.topic), description: str(i.description), status: str(i.status) || 'open' })) }
+      case 'decisions':
+        return { ...base, items: arr(s.items).map((i) => ({ decision: str(i.decision), rationale: str(i.rationale), owner: str(i.owner), date: str(i.date) })) }
+      case 'risks':
+        return { ...base, items: arr(s.items).map((i) => ({ risk: str(i.risk), severity: str(i.severity) || 'medium', owner: str(i.owner), mitigation: str(i.mitigation), status: str(i.status) || 'open' })) }
+      case 'resources':
+        return { ...base, items: arr(s.items).map((i) => ({ label: str(i.label), url: str(i.url), note: str(i.note) })) }
+      case 'tasks':
+        return { ...base, items: arr(s.items).map((i) => ({ text: str(i.text), assignee: str(i.assignee), status: str(i.status) || 'planned', startDate: str(i.startDate), endDate: str(i.endDate) })) }
+      case 'graph':
+      case 'pie':
+        return { ...base, data: arr(s.data).map((d) => ({ label: str(d.label), value: d.value ?? '' })) }
+      case 'gantt':
+        return { ...base, data: arr(s.data).map((d) => ({ label: str(d.label), startDate: str(d.startDate), endDate: str(d.endDate), description: str(d.description) })) }
+      case 'line':
+        return { ...base, xLabels: str(s.xLabels), series: arr(s.series).map((se) => ({ name: str(se.name), values: arr(se.values) })) }
+      default:
+        return base
+    }
+  })
+}
+
 // Pulls the module-spec array out of a parsed AI response, tolerating either key.
 export function extractModuleSpecs(parsed) {
   if (!parsed || typeof parsed !== 'object') return []

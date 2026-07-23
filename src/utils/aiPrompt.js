@@ -272,6 +272,34 @@ export function buildContextAIPrompt(notes, scopeLabel, scope) {
   }
 }
 
+// ─── Whole-note AI edit prompt ───────────────────────────────────────────────
+// Serialises every section (from serializeSectionsForEdit in utils/aiModules)
+// plus a free-text instruction. Claude returns the full edited note as
+// {"sections": [...]}, which the app rebuilds via sectionsFromModuleSpecs.
+export function buildNoteEditAIPrompt(sectionSpecs, instruction, promptMode = 'clipboard') {
+  return {
+    _version: '1',
+    _type: 'note_edit_prompt',
+    instructions: {
+      task: 'You are editing an existing meeting note. Apply the requested edits to the sections provided.',
+      edit_request: (instruction || '').trim() || 'Improve and tidy this note without changing its meaning.',
+      rules: [
+        'Return the FULL updated note — every section that should remain, not only the ones you changed.',
+        'You may edit, add, remove, or reorder sections and their items/rows to satisfy the request.',
+        'Keep each section in the same shape it was given, and do not change a section\'s "type" unless explicitly asked.',
+        'For "text" and "notes" sections, "content" is HTML — return valid HTML (markdown is also accepted and will be converted).',
+        'Enum values: topics.status = new|open|inProgress|complete; risks.severity = low|medium|high|critical; risks.status = open|monitoring|mitigated|closed; tasks.status = planned|inProgress|complete|blocked. All dates are YYYY-MM-DD.',
+      ].join(' '),
+      output_format: [
+        'Respond with ONLY a raw JSON object of the form {"sections": [ ...updated sections... ]}.',
+        'No code fences, no text before or after.',
+        ...(promptMode !== 'download' ? ['ZERO additional text. Start with { and end with }.'] : []),
+      ].join(' '),
+    },
+    sections: sectionSpecs,
+  }
+}
+
 // ─── Master Notes context prompt ─────────────────────────────────────────────
 
 export function buildMasterNotesContextAIPrompt(customer, customerNotes, settings) {

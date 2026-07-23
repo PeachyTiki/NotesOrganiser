@@ -3,6 +3,7 @@ import { X, FileEdit, FileDown, Lock, ChevronLeft, ChevronRight, ZoomIn, ZoomOut
 import { useApp } from '../../context/AppContext'
 import { useAlert } from '../ui/DialogProvider'
 import A4Preview from '../meetings/A4Preview'
+import AiEditPanel from '../meetings/AiEditPanel'
 import { makeT } from '../../utils/i18n'
 import { exportSingleNote, formatDateForFilename } from '../../utils/export'
 
@@ -21,7 +22,7 @@ function slug(str) {
 }
 
 export default function NoteViewModal({ note, onEdit, onClose }) {
-  const { templates, settings, meetingNotes } = useApp()
+  const { templates, settings, meetingNotes, saveMeetingNote } = useApp()
   const alertUser = useAlert()
   const internalNotesEnabled = !!settings?.internalNotesEnabled
   const tasksEnabled = !!settings?.tasksEnabled
@@ -209,6 +210,17 @@ export default function NoteViewModal({ note, onEdit, onClose }) {
 
         {/* Preview body */}
         <div className="flex-1 overflow-y-auto py-6 px-6 pb-20">
+          {/* AI edit — targets the mode currently shown (Both edits Standard) */}
+          <div className="max-w-3xl mx-auto mb-4">
+            <AiEditPanel
+              sections={(effectiveViewMode === 'internal' ? currentNote.internalSections : currentNote.sections) || []}
+              onApply={(secs) => saveMeetingNote({
+                ...currentNote,
+                [effectiveViewMode === 'internal' ? 'internalSections' : 'sections']: secs,
+                updatedAt: new Date().toISOString(),
+              })}
+            />
+          </div>
           {effectiveViewMode === 'both' ? (
             <div className="flex gap-4">
               <div className="flex-1 min-w-0">

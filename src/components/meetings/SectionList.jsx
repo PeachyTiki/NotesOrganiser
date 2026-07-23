@@ -56,6 +56,7 @@ import DecisionSection from './sections/DecisionSection'
 import RisksSection from './sections/RisksSection'
 import ResourcesSection from './sections/ResourcesSection'
 import TextEditorModal from './TextEditorModal'
+import AiEditPanel from './AiEditPanel'
 
 const TYPE_META = {
   text:        { label: 'Text',      icon: AlignLeft,   border: 'border-l-sky-400',    badge: 'bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400' },
@@ -358,6 +359,8 @@ export default function SectionList({ sections, onChange, t, note, meetingNotes,
       </DndContext>
 
       {/* Add section */}
+      <AiEditPanel sections={sections} onApply={onChange} className="pt-1" />
+
       <div>
         <button
           ref={addSectionBtnRef}
