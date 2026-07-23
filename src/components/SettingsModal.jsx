@@ -436,7 +436,7 @@ export default function SettingsModal({ onClose }) {
               <button
                 onClick={() => set('aiPromptMode', 'download')}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  (form.aiPromptMode || 'download') === 'download'
+                  (form.aiPromptMode || 'clipboard') === 'download'
                     ? 'bg-accent text-[color:var(--accent-contrast)]'
                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                 }`}
@@ -453,16 +453,38 @@ export default function SettingsModal({ onClose }) {
               >
                 Copy / Paste
               </button>
-              <button
-                onClick={() => set('aiPromptMode', 'clipboard-open')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  form.aiPromptMode === 'clipboard-open'
-                    ? 'bg-accent text-[color:var(--accent-contrast)]'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                }`}
-              >
-                Copy &amp; Open Claude
-              </button>
+              {form.enableClaudeAutoOpen && (
+                <button
+                  onClick={() => set('aiPromptMode', 'clipboard-open')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    form.aiPromptMode === 'clipboard-open'
+                      ? 'bg-accent text-[color:var(--accent-contrast)]'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  }`}
+                >
+                  Copy &amp; Open Claude
+                </button>
+              )}
+            </div>
+
+            {/* Advanced, off by default: the one-click "open Claude" mode */}
+            <div className="mt-3 rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Allow “Copy &amp; Open Claude” mode</span>
+                <Toggle
+                  checked={!!form.enableClaudeAutoOpen}
+                  onChange={(val) => {
+                    set('enableClaudeAutoOpen', val)
+                    if (!val && form.aiPromptMode === 'clipboard-open') set('aiPromptMode', 'clipboard')
+                  }}
+                />
+              </div>
+              <p className="mt-1 flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+                <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                <span>
+                  When on, an extra mode appears that opens claude.ai in your browser automatically. Only enable this if you're permitted to send this data to Claude — you stay responsible for what you paste. It never logs in or pastes for you.
+                </span>
+              </p>
             </div>
           </div>
 
