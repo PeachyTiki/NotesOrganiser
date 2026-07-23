@@ -15,10 +15,13 @@ import Select from '../../ui/Select'
 const DEFAULT_TONE = { formality: 'professional', conciseness: 'balanced', customInstructions: '' }
 
 export default function NotesSection({ section, onChange, isFirstNotesSection }) {
-  const { note, meetingNotes, defaultTone, contextDepth, openNotesToken, addSections } = useContext(SectionContext) || {}
+  const { note, meetingNotes, defaultTone, contextDepth, openNotesToken, addSections, sections, replaceSections } = useContext(SectionContext) || {}
   const { settings } = useApp()
   const confirm = useConfirm()
   const aiPromptMode = settings?.aiPromptMode || 'clipboard'
+  // When on, the AI may suggest new modules and edit existing sections (returns
+  // a full {"sections":[…]} note); when off, it just returns cleaned notes.
+  const canEditSections = settings?.aiSuggestSections !== false
   // Snapshot of the raw notes + tone taken when the prompt was last exported, so
   // "Retry" can put the inputs back after the AI response has replaced them.
   const [lastAttempt, setLastAttempt] = useState(null)
@@ -78,7 +81,7 @@ export default function NotesSection({ section, onChange, isFirstNotesSection })
     try {
       // Capture the inputs as they are now, so Retry can restore them later.
       setLastAttempt({ content: section.content || '', tone })
-      const prompt = buildSectionAIPrompt(section, note || {}, meetingNotes || [], tone, contextDepth ?? 4, aiPromptMode)
+      const prompt = buildSectionAIPrompt(section, note || {}, meetingNotes || [], tone, contextDepth ?? 4, aiPromptMode, { canEditSections, currentSections: sections })
       const json = JSON.stringify(prompt, null, 2)
       if (aiPromptMode !== 'download') {
         copyPromptToClipboard(json, aiPromptMode).then(() => {
@@ -97,12 +100,34 @@ export default function NotesSection({ section, onChange, isFirstNotesSection })
     }
   }
 
-  const handleApply = () => {
+  const handleApply = async () => {
     if (!pasteText.trim()) {
       flash(setError, errorTimer, 'Paste the AI response first.')
       return
     }
     const stripped = pasteText.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+
+    // Smart-notes reply: a full {"sections":[…]} note (adds + edits sections).
+    // Replaces the whole section list, behind a confirm so nothing is lost.
+    if (stripped.startsWith('{') && typeof replaceSections === 'function') {
+      let parsedFull = null
+      try { parsedFull = JSON.parse(stripped) } catch { parsedFull = null }
+      if (parsedFull && Array.isArray(parsedFull.sections)) {
+        const built = sectionsFromModuleSpecs(parsedFull.sections)
+        if (!built.length) { flash(setError, errorTimer, 'No usable sections found in the response.'); return }
+        const ok = await confirm({
+          title: 'Apply AI changes?',
+          message: `This updates the whole note — ${(sections || []).length} section(s) → ${built.length}. Nothing is saved until you save the meeting.`,
+          confirmLabel: 'Apply',
+        })
+        if (!ok) return
+        setError('')
+        setPasteText('')
+        replaceSections(built) // may unmount this section — do state updates first
+        return
+      }
+    }
+
     let raw = null
     let moduleSpecs = []
     if (stripped.startsWith('{')) {

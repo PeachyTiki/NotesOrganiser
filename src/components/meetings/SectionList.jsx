@@ -308,7 +308,7 @@ export default function SectionList({ sections, onChange, t, note, meetingNotes,
   const visibleSections = sections.filter((s) => s.type !== 'tasks' || tasksEnabled)
 
   return (
-    <SectionContext.Provider value={{ note, meetingNotes, defaultTone, contextDepth, openNotesToken, addSections }}>
+    <SectionContext.Provider value={{ note, meetingNotes, defaultTone, contextDepth, openNotesToken, addSections, sections, replaceSections: onChange }}>
     <div className="space-y-3">
       <DndContext
         sensors={sensors}

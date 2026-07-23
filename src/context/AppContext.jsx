@@ -41,6 +41,7 @@ const defaultState = {
     },
     aiPromptMode: 'clipboard',
     enableClaudeAutoOpen: false,
+    aiSuggestSections: true,
     defaultTemplateId: '',
     autoBackupFolder: '',
     scheduledBackup: { enabled: false, folder: '', frequency: 'weekly', lastRunAt: '' },

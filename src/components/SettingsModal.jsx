@@ -467,6 +467,18 @@ export default function SettingsModal({ onClose }) {
               )}
             </div>
 
+            {/* Let the notes AI suggest / add / edit sections */}
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Let the AI suggest &amp; edit sections</span>
+              <Toggle
+                checked={form.aiSuggestSections !== false}
+                onChange={(val) => set('aiSuggestSections', val)}
+              />
+            </div>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              When on, the notes AI can offer to turn content into charts, tables and other sections (you pick which), and its pasted reply can add or edit sections. When off, it simply returns cleaned-up notes to paste back — the classic behaviour.
+            </p>
+
             {/* Advanced, off by default: the one-click "open Claude" mode */}
             <div className="mt-3 rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
               <div className="flex items-center justify-between gap-3">
