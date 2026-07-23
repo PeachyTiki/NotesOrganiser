@@ -284,6 +284,12 @@ export default function SectionList({ sections, onChange, t, note, meetingNotes,
     setCollapsed(collapsedBeforeDrag.current || {})
   }
 
+  // Append already-built section objects (e.g. AI-suggested modules). Exposed
+  // via SectionContext so a section (NotesSection) can add sibling sections.
+  const addSections = (newSections) => {
+    if (Array.isArray(newSections) && newSections.length) onChange([...sections, ...newSections])
+  }
+
   const addSection = (type) => {
     const section = newSection(type)
     onChange([...sections, section])
@@ -301,7 +307,7 @@ export default function SectionList({ sections, onChange, t, note, meetingNotes,
   const visibleSections = sections.filter((s) => s.type !== 'tasks' || tasksEnabled)
 
   return (
-    <SectionContext.Provider value={{ note, meetingNotes, defaultTone, contextDepth, openNotesToken }}>
+    <SectionContext.Provider value={{ note, meetingNotes, defaultTone, contextDepth, openNotesToken, addSections }}>
     <div className="space-y-3">
       <DndContext
         sensors={sensors}

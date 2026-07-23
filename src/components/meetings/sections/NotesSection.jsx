@@ -3,6 +3,7 @@ import { Brain, Download, ChevronDown, ChevronRight, Settings2, Clipboard, Rotat
 import { SectionContext } from '../SectionList'
 import { buildSectionAIPrompt, importSectionJsonResponse } from '../../../utils/aiPrompt'
 import { copyPromptToClipboard } from '../../../utils/aiDelivery'
+import { sectionsFromModuleSpecs, extractModuleSpecs } from '../../../utils/aiModules'
 import { markdownToHtml, htmlToPlainText } from '../../../utils/markdownToHtml'
 import RichTextEditor from './RichTextEditor'
 import { downloadBlob, formatDateForFilename } from '../../../utils/export'
@@ -13,7 +14,7 @@ import Select from '../../ui/Select'
 const DEFAULT_TONE = { formality: 'professional', conciseness: 'balanced', customInstructions: '' }
 
 export default function NotesSection({ section, onChange, isFirstNotesSection }) {
-  const { note, meetingNotes, defaultTone, contextDepth, openNotesToken } = useContext(SectionContext) || {}
+  const { note, meetingNotes, defaultTone, contextDepth, openNotesToken, addSections } = useContext(SectionContext) || {}
   const { settings } = useApp()
   const confirm = useConfirm()
   const aiPromptMode = settings?.aiPromptMode || 'clipboard'
@@ -101,23 +102,45 @@ export default function NotesSection({ section, onChange, isFirstNotesSection })
       return
     }
     const stripped = pasteText.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
-    let raw
+    let raw = null
+    let moduleSpecs = []
     if (stripped.startsWith('{')) {
+      let parsed
+      try {
+        parsed = JSON.parse(stripped)
+      } catch {
+        flash(setError, errorTimer, 'Invalid JSON — could not parse the AI response.')
+        return
+      }
+      moduleSpecs = extractModuleSpecs(parsed)
+      // Extract the notes content; tolerate a modules-only reply (no content).
       try {
         raw = importSectionJsonResponse(stripped)
       } catch (err) {
-        flash(setError, errorTimer, err.message)
-        return
+        if (!moduleSpecs.length) { flash(setError, errorTimer, err.message); return }
+        raw = null
       }
     } else {
       raw = stripped
     }
-    // Strip any HTML tags (e.g. browser-formatted copy-paste) then convert markdown → HTML
-    const plain = raw.includes('<') ? htmlToPlainText(raw) : raw
-    const content = markdownToHtml(plain)
-    onChange({ content })
+
+    if (raw != null) {
+      // Strip any HTML tags (e.g. browser-formatted copy-paste) then convert markdown → HTML
+      const plain = raw.includes('<') ? htmlToPlainText(raw) : raw
+      onChange({ content: markdownToHtml(plain) })
+    }
+
+    // Append any AI-suggested modules (charts, gantt, decisions, …) as new sections.
+    let added = 0
+    if (moduleSpecs.length && typeof addSections === 'function') {
+      const built = sectionsFromModuleSpecs(moduleSpecs)
+      if (built.length) { addSections(built); added = built.length }
+    }
+
     setPasteText('')
-    flash(setSuccess, successTimer, 'Notes updated.')
+    flash(setSuccess, successTimer, added
+      ? `Notes updated · added ${added} module${added > 1 ? 's' : ''}.`
+      : 'Notes updated.')
     setError('')
   }
 

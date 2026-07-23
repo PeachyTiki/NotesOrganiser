@@ -4,6 +4,36 @@ import { LANGUAGES } from './i18n'
 // 'clipboard-open'). The terse "raw JSON only" instructions apply to every
 // copy-paste mode — hence the `!== 'download'` checks below.
 
+// Optional module-suggestion protocol. After cleaning the notes, Claude may
+// offer to turn well-supported content into structured modules (charts, gantt,
+// decisions, …). It asks a numbered plain-text question first; once the user
+// picks numbers, it returns the final JSON with a "modules" array. The importer
+// (utils/aiModules.js) builds real sections from those specs.
+const MODULE_PROTOCOL = [
+  'OPTIONAL MODULES: after you have the cleaned notes ready, judge whether the transcript genuinely contains data for any of these structured modules: bar chart (type "graph"), pie chart ("pie"), line chart ("line"), Gantt timeline ("gantt"), decisions log ("decisions"), risks & blockers ("risks"), topics ("topics"), resources & links ("resources"), or a tasks list ("tasks").',
+  'Only suggest a module when the real content supports it (numbers for a chart, dated activities for a Gantt, etc.). Never invent data to fill one.',
+  'IF you have one or more good suggestions, DO NOT send the JSON yet. FIRST reply in PLAIN TEXT (no JSON, no code fences), in exactly this shape:',
+  'Hi — would you like to add any of the following?',
+  '1. <Module type> (for <short topic>) — <one-line preview of the content, e.g. "Sales 30%, Marketing 40%, Ops 30%" or "3 tasks across Jan–Mar">',
+  '2. <next suggestion>',
+  'If a module needs a little more info before it can be built, append to its line: " — before adding, please provide: <what you need>".',
+  'Finish with: "Reply with the numbers you want (e.g. 1 3), or say no."',
+  'THEN wait. When the user replies with numbers (or "no"), send ONLY the final raw JSON: the usual notes object PLUS a "modules" array holding the chosen modules (omit "modules" or use [] if they said no). Anything not turned into a module stays written up in the notes content as normal.',
+  'This module question is the ONLY time you may reply in plain text; every other reply, including the final one, is raw JSON only.',
+  'Each "modules" entry uses one of these shapes (include only fields you actually have — the app fills defaults):',
+  '{"type":"graph","label":"Revenue by team","data":[{"label":"Sales","value":30},{"label":"Ops","value":70}]}',
+  '{"type":"pie","label":"Budget split","data":[{"label":"R&D","value":40}]}',
+  '{"type":"line","label":"Signups","xLabels":"Jan,Feb,Mar","series":[{"name":"2025","values":[10,20,35]}]}',
+  '{"type":"gantt","label":"Rollout","data":[{"label":"Design","startDate":"2025-01-05","endDate":"2025-02-01","description":""}]}',
+  '{"type":"topics","label":"Open topics","items":[{"topic":"Pricing","description":"…","status":"open"}]}',
+  '{"type":"decisions","label":"Decisions","items":[{"decision":"Launch in Q3","rationale":"…","owner":"Alice","date":"2025-06-01"}]}',
+  '{"type":"risks","label":"Risks","items":[{"risk":"Vendor delay","severity":"high","owner":"Bob","mitigation":"…","status":"open"}]}',
+  '{"type":"resources","label":"Links","items":[{"label":"Spec","url":"https://…","note":""}]}',
+  '{"type":"tasks","label":"Follow-ups","items":[{"text":"Send deck","assignee":"Alice","status":"planned","startDate":"","endDate":""}]}',
+  'Enum values: topics.status = new|open|inProgress|complete; risks.severity = low|medium|high|critical; risks.status = open|monitoring|mitigated|closed; tasks.status = planned|inProgress|complete|blocked. All dates are YYYY-MM-DD.',
+  'IF nothing is clearly supported, skip all of this and just return the normal notes JSON.',
+].join('\n')
+
 function resolveLanguageName(code) {
   if (!code) return null
   const found = LANGUAGES.find((l) => l.code === code)
@@ -103,6 +133,7 @@ export function buildSectionAIPrompt(section, note, allMeetingNotes, toneSetting
         'If the transcript is absent or unclear, ask the user in plain text (not JSON) to provide their notes.',
         ...(promptMode !== 'download' ? ['ZERO additional text. Your entire message must be only the JSON object. Do not greet, do not explain, do not use code fences. Start your response with { and end with }.'] : []),
       ].join(' '),
+      optional_modules: MODULE_PROTOCOL,
       tone: buildToneString(toneSettings),
     },
     meeting_context: {
