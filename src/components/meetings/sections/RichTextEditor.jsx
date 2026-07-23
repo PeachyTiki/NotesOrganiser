@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Bold, Italic, Underline, Strikethrough, List, ListOrdered, Minus } from 'lucide-react'
 import Popover from '../../ui/Popover'
+import { sanitizeHtml } from '../../../utils/sanitizeHtml'
 
 const FONTS = ['Arial', 'Georgia', 'Courier New', 'Times New Roman', 'Verdana']
 const SIZES = [
@@ -29,7 +30,7 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
   // Mount: set initial content once
   useEffect(() => {
     if (editorRef.current) {
-      editorRef.current.innerHTML = value || ''
+      editorRef.current.innerHTML = sanitizeHtml(value)
       lastEmittedRef.current = value || ''
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -41,7 +42,7 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
     if (!editorRef.current) return
     if (isFocusedRef.current) return
     if (value === lastEmittedRef.current) return
-    editorRef.current.innerHTML = value || ''
+    editorRef.current.innerHTML = sanitizeHtml(value)
     lastEmittedRef.current = value || ''
   }, [value])
 

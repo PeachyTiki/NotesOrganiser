@@ -5,7 +5,6 @@ import { useConfirm } from '../ui/DialogProvider'
 import { copyPromptToClipboard } from '../../utils/aiDelivery'
 import { buildNoteEditAIPrompt } from '../../utils/aiPrompt'
 import { serializeSectionsForEdit, sectionsFromModuleSpecs } from '../../utils/aiModules'
-import { markdownToHtml } from '../../utils/markdownToHtml'
 import { downloadBlob } from '../../utils/export'
 
 // Prompt-driven editing of a whole note: type an instruction, copy the edit
@@ -55,14 +54,9 @@ export default function AiEditPanel({ sections, onApply, className = '' }) {
     }
     const specs = Array.isArray(parsed?.sections) ? parsed.sections : null
     if (!specs || !specs.length) { flash(false, 'Expected {"sections": [ … ]} with at least one section.'); return }
-    let built = sectionsFromModuleSpecs(specs)
+    // sectionsFromModuleSpecs converts + sanitises notes/text content itself.
+    const built = sectionsFromModuleSpecs(specs)
     if (!built.length) { flash(false, 'No usable sections were found in the response.'); return }
-    // notes/text content may come back as markdown — convert if it isn't HTML
-    built = built.map((s) =>
-      (s.type === 'notes' || s.type === 'text') && s.content && !s.content.includes('<')
-        ? { ...s, content: markdownToHtml(s.content) }
-        : s
-    )
     const ok = await confirm({
       title: 'Apply AI edits?',
       message: `This replaces the note's ${(sections || []).length} section(s) with the AI's edited version (${built.length} section(s)). Nothing is saved until you save the note.`,

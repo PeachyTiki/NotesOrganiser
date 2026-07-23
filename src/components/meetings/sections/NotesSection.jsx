@@ -5,6 +5,7 @@ import { buildSectionAIPrompt, importSectionJsonResponse } from '../../../utils/
 import { copyPromptToClipboard } from '../../../utils/aiDelivery'
 import { sectionsFromModuleSpecs, extractModuleSpecs } from '../../../utils/aiModules'
 import { markdownToHtml, htmlToPlainText } from '../../../utils/markdownToHtml'
+import { sanitizeHtml } from '../../../utils/sanitizeHtml'
 import RichTextEditor from './RichTextEditor'
 import { downloadBlob, formatDateForFilename } from '../../../utils/export'
 import { useApp } from '../../../context/AppContext'
@@ -127,7 +128,7 @@ export default function NotesSection({ section, onChange, isFirstNotesSection })
     if (raw != null) {
       // Strip any HTML tags (e.g. browser-formatted copy-paste) then convert markdown → HTML
       const plain = raw.includes('<') ? htmlToPlainText(raw) : raw
-      onChange({ content: markdownToHtml(plain) })
+      onChange({ content: sanitizeHtml(markdownToHtml(plain)) })
     }
 
     // Append any AI-suggested modules (charts, gantt, decisions, …) as new sections.

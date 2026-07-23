@@ -263,8 +263,20 @@ ipcMain.handle('select-folder', async (event) => {
   return result.filePaths[0]
 })
 
+// Defense-in-depth: the renderer supplies the destination, so reject anything
+// that could climb out of the chosen folder or smuggle a path into the
+// filename. The primary XSS vector that could abuse this is closed by
+// sanitising all rendered content, but validate here too.
+const hasTraversal = (s) => typeof s !== 'string' || s.length === 0 || s.includes('..')
+
 ipcMain.handle('write-file', async (_event, pathParts, filename, base64Data) => {
   try {
+    if (!Array.isArray(pathParts) || pathParts.length === 0 || pathParts.some(hasTraversal)) {
+      return { ok: false, error: 'Invalid destination path' }
+    }
+    if (typeof filename !== 'string' || !filename || filename.includes('..') || /[\\/]/.test(filename)) {
+      return { ok: false, error: 'Invalid filename' }
+    }
     const dir = path.join(...pathParts)
     fs.mkdirSync(dir, { recursive: true })
     const filePath = path.join(dir, filename)
@@ -277,6 +289,11 @@ ipcMain.handle('write-file', async (_event, pathParts, filename, base64Data) => 
 })
 
 ipcMain.handle('delete-file', async (_event, filePath) => {
+  // Only ever used to remove a previously-synced PDF. Confine deletion to .pdf
+  // paths and reject traversal so a bad caller can't delete arbitrary files.
+  if (typeof filePath !== 'string' || filePath.includes('..') || !/\.pdf$/i.test(filePath)) {
+    return { ok: false, error: 'Refused: only synced PDF files can be deleted' }
+  }
   try {
     fs.unlinkSync(filePath)
   } catch (err) {

@@ -1,4 +1,5 @@
 import React from 'react'
+import { sanitizeHtml } from '../../utils/sanitizeHtml'
 import { BarChart } from './sections/GraphSection'
 import { GanttChart, GanttDescriptionTable } from './sections/GanttSection'
 import { PieChart } from './sections/PieSection'
@@ -69,7 +70,7 @@ function SectionBlock({ section, bannerColor, t, isFirst }) {
       <div style={{ marginBottom: 20 }}>
         <SectionHeader label={section.label} bannerColor={bannerColor} isFirst={isFirst} />
         {isHtml
-          ? <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.65 }} dangerouslySetInnerHTML={{ __html: content }} />
+          ? <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.65 }} dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }} />
           : renderTextLines(content.split('\n'), bannerColor)
         }
       </div>

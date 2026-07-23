@@ -1,4 +1,6 @@
 import { v4 as uuid } from 'uuid'
+import { markdownToHtml } from './markdownToHtml'
+import { sanitizeHtml } from './sanitizeHtml'
 
 // Turns AI "module" specs (from a Claude response) into full section objects
 // that render exactly like manually-added sections. The shapes here MUST mirror
@@ -18,6 +20,8 @@ const num = (v) => {
 const arr = (x) => (Array.isArray(x) ? x : [])
 const oneOf = (v, allowed, fallback) => (allowed.includes(v) ? v : fallback)
 const xLabelsToString = (x) => (Array.isArray(x) ? x.map(str).join(', ') : str(x))
+// AI-supplied notes/text bodies: accept markdown or HTML, always store SAFE HTML.
+const toSafeHtml = (raw) => sanitizeHtml(markdownToHtml(str(raw)))
 
 function buildOne(spec) {
   if (!spec || typeof spec !== 'object') return null
@@ -26,7 +30,7 @@ function buildOne(spec) {
   switch (spec.type) {
     case 'text':
     case 'notes':
-      return { id, type: spec.type, label, content: str(spec.content) }
+      return { id, type: spec.type, label, content: toSafeHtml(spec.content) }
 
     case 'topics':
       return { id, type: 'topics', label, items: arr(spec.items).map((i) => ({
