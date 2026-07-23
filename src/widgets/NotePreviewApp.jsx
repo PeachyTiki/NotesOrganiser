@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { X, Lock } from 'lucide-react'
 import A4Preview from '../components/meetings/A4Preview'
 import { makeT } from '../utils/i18n'
@@ -38,8 +38,16 @@ function formatDate(dateStr) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+const pillCls = (active) =>
+  `px-4 py-2 text-xs font-medium transition-colors ${
+    active
+      ? 'text-gray-800 dark:text-gray-200'
+      : 'text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400'
+  }`
+
 export default function NotePreviewApp() {
   const remoteState = useRemoteAppState()
+  const [viewMode, setViewMode] = useState('standard')
   const noteId = new URLSearchParams(window.location.search).get('noteId')
   const close = () => window.electronAPI?.closeCurrentWindow?.()
 
@@ -68,13 +76,22 @@ export default function NotePreviewApp() {
 
   const hasStandard = note.modes?.standard !== false
   const hasInternal = !!remoteState.settings?.internalNotesEnabled && !!note.modes?.internal
-  const isInternal = hasInternal && !hasStandard
+  const bothExist = hasStandard && hasInternal
 
-  const sections = isInternal ? note.internalSections : note.sections
-  const templateId = isInternal ? note.internalTemplateId : note.templateId
-  const template = (remoteState.templates || []).find((tpl) => tpl.id === templateId) || null
-  const noteForPreview = { ...note, sections: stripTasks(sections || []) }
+  // Resolve the requested view against what this note actually has.
+  const effective =
+    viewMode === 'both' && !bothExist ? (hasInternal && !hasStandard ? 'internal' : 'standard') :
+    viewMode === 'internal' && !hasInternal ? 'standard' :
+    viewMode === 'standard' && !hasStandard ? 'internal' :
+    viewMode
+  const isInternal = effective === 'internal'
+
   const t = makeT(note.language)
+  const templates = remoteState.templates || []
+  const stdTemplate = templates.find((tpl) => tpl.id === note.templateId) || null
+  const intTemplate = templates.find((tpl) => tpl.id === note.internalTemplateId) || null
+  const stdNote = { ...note, sections: stripTasks(note.sections || []) }
+  const intNote = { ...note, sections: stripTasks(note.internalSections || []) }
 
   return (
     <div className={`h-screen flex flex-col relative isolate ${BACKDROP}`}>
@@ -88,9 +105,45 @@ export default function NotePreviewApp() {
         isInternal={isInternal}
         onClose={close}
       />
-      <div className="flex-1 overflow-y-auto p-4">
-        <A4Preview note={noteForPreview} template={template} t={t} isInternal={isInternal} />
+      <div className={`flex-1 overflow-y-auto p-4 ${bothExist ? 'pb-16' : ''}`}>
+        {effective === 'both' ? (
+          <div className="space-y-4">
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Standard</p>
+              <A4Preview note={stdNote} template={stdTemplate} t={t} isInternal={false} />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <Lock size={10} /> Internal
+              </p>
+              <A4Preview note={intNote} template={intTemplate} t={t} isInternal={true} />
+            </div>
+          </div>
+        ) : (
+          <A4Preview
+            note={isInternal ? intNote : stdNote}
+            template={isInternal ? intTemplate : stdTemplate}
+            t={t}
+            isInternal={isInternal}
+          />
+        )}
       </div>
+
+      {/* Standard / Both / Internal toggle — only when the note has both modes */}
+      {bothExist && (
+        <div
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center dropdown-panel rounded-full overflow-hidden select-none"
+          style={{ WebkitAppRegion: 'no-drag' }}
+        >
+          <button onClick={() => setViewMode('standard')} className={pillCls(effective === 'standard')}>Standard</button>
+          <div className="w-px h-5 bg-gray-200 dark:bg-gray-600 shrink-0" />
+          <button onClick={() => setViewMode('both')} className={pillCls(effective === 'both')}>Both</button>
+          <div className="w-px h-5 bg-gray-200 dark:bg-gray-600 shrink-0" />
+          <button onClick={() => setViewMode('internal')} className={`${pillCls(effective === 'internal')} flex items-center gap-1`}>
+            <Lock size={10} /> Internal
+          </button>
+        </div>
+      )}
     </div>
   )
 }

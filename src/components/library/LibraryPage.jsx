@@ -333,7 +333,10 @@ export default function LibraryPage() {
   const savedNotesCount = meetingNotes.filter((n) => !n.isDraft).length
   const draftCount = meetingNotes.filter((n) => n.isDraft).length
 
-  if (savedNotesCount === 0) {
+  // Only show the full empty state when there are NO notes at all. If drafts
+  // exist (even with no saved notes), fall through to the normal library UI so
+  // the filter bar — and the "Drafts only" filter — stay accessible.
+  if (meetingNotes.length === 0) {
     return (
       <div>
         <div className="mb-6">
