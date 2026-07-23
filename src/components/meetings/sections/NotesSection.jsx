@@ -1,5 +1,5 @@
 import React, { useState, useRef, useContext, useEffect } from 'react'
-import { Brain, Download, ChevronDown, ChevronRight, Settings2, Clipboard } from 'lucide-react'
+import { Brain, Download, ChevronDown, ChevronRight, Settings2, Clipboard, RotateCcw } from 'lucide-react'
 import { SectionContext } from '../SectionList'
 import { buildSectionAIPrompt, importSectionJsonResponse } from '../../../utils/aiPrompt'
 import { copyPromptToClipboard } from '../../../utils/aiDelivery'
@@ -7,6 +7,7 @@ import { markdownToHtml, htmlToPlainText } from '../../../utils/markdownToHtml'
 import RichTextEditor from './RichTextEditor'
 import { downloadBlob, formatDateForFilename } from '../../../utils/export'
 import { useApp } from '../../../context/AppContext'
+import { useConfirm } from '../../ui/DialogProvider'
 import Select from '../../ui/Select'
 
 const DEFAULT_TONE = { formality: 'professional', conciseness: 'balanced', customInstructions: '' }
@@ -14,7 +15,11 @@ const DEFAULT_TONE = { formality: 'professional', conciseness: 'balanced', custo
 export default function NotesSection({ section, onChange, isFirstNotesSection }) {
   const { note, meetingNotes, defaultTone, contextDepth, openNotesToken } = useContext(SectionContext) || {}
   const { settings } = useApp()
-  const aiPromptMode = settings?.aiPromptMode || 'download'
+  const confirm = useConfirm()
+  const aiPromptMode = settings?.aiPromptMode || 'clipboard'
+  // Snapshot of the raw notes + tone taken when the prompt was last exported, so
+  // "Retry" can put the inputs back after the AI response has replaced them.
+  const [lastAttempt, setLastAttempt] = useState(null)
 
   // Tone is persisted in section.tone; initialise with section override → serie default → app default
   const [tone, setToneLocal] = useState(() => ({
@@ -53,8 +58,24 @@ export default function NotesSection({ section, onChange, isFirstNotesSection })
     onChange({ tone: next })
   }
 
+  const handleRetry = async () => {
+    if (!lastAttempt) return
+    const ok = await confirm({
+      title: 'Retry AI summary?',
+      message: 'This puts back the raw notes/transcript you last exported so you can adjust and run the AI again. The current contents of this section will be replaced.',
+      confirmLabel: 'Repopulate',
+    })
+    if (!ok) return
+    setToneLocal(lastAttempt.tone)
+    onChange({ content: lastAttempt.content, tone: lastAttempt.tone })
+    setImportOpen(false)
+    flash(setSuccess, successTimer, 'Restored your last attempt — adjust and export again.')
+  }
+
   const handleExport = () => {
     try {
+      // Capture the inputs as they are now, so Retry can restore them later.
+      setLastAttempt({ content: section.content || '', tone })
       const prompt = buildSectionAIPrompt(section, note || {}, meetingNotes || [], tone, contextDepth ?? 4, aiPromptMode)
       const json = JSON.stringify(prompt, null, 2)
       if (aiPromptMode !== 'download') {
@@ -149,6 +170,17 @@ export default function NotesSection({ section, onChange, isFirstNotesSection })
           I have JSON
           {importOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
         </button>
+
+        {lastAttempt && (
+          <button
+            onClick={handleRetry}
+            className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-amber-500 dark:hover:text-amber-400 transition-colors"
+            title="Put back the notes you last exported and try again"
+          >
+            <RotateCcw size={12} />
+            Retry
+          </button>
+        )}
 
         <button
           onClick={() => setToneOpen((v) => !v)}
