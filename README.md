@@ -9,14 +9,14 @@ A desktop meeting notes app — organise notes by customer and recurring meeting
 ### Windows
 
 1. Go to **[Releases](https://github.com/PeachyTiki/NotesOrganiser/releases/latest)**
-2. Download **`Notes Organiser Setup 2.3.0.exe`**
+2. Download **`Notes Organiser Setup 3.0.0.exe`**
 3. Run the installer and follow the prompts
 4. Launch **Notes Organiser** from the Start Menu or Desktop shortcut
 
 ### Mac
 
 1. Go to **[Releases](https://github.com/PeachyTiki/NotesOrganiser/releases/latest)**
-2. Download **`Notes Organiser-2.3.0-universal.dmg`**
+2. Download **`Notes Organiser-3.0.0-universal.dmg`**
 3. Open the DMG, drag **Notes Organiser** into your **Applications** folder
 4. **First launch only:** right-click the app → **Open** → click **Open** in the dialog
    *(macOS blocks unsigned apps by default — you only need to do this once)*
@@ -78,8 +78,8 @@ npm run dev
 
 # Build installer
 npm run electron:build
-# → release/Notes Organiser Setup 2.3.0.exe  (Windows)
-# → release/Notes Organiser-2.3.0-universal.dmg  (Mac — requires macOS runner)
+# → release/Notes Organiser Setup 3.0.0.exe  (Windows)
+# → release/Notes Organiser-3.0.0-universal.dmg  (Mac — requires macOS runner)
 ```
 
 Releases are built automatically via GitHub Actions on every version tag push. The workflow builds Windows on `windows-latest` and Mac on `macos-latest` and attaches both to a GitHub Release.

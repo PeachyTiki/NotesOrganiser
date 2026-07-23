@@ -61,7 +61,16 @@ After a note is saved, `triggerNoteSync` renders it to a PDF buffer and writes i
 ### Export & AI
 
 - Exports live in `src/utils/`: `export.js` (orchestration + PNG via html2canvas), `exportPDF.js` (jsPDF, real text), `exportWord.js` (docx). Charts are captured from an off-screen canvas container (`#offscreen-export-canvas`) to avoid grabbing the scaled preview instance.
-- `src/utils/aiPrompt.js` builds a structured JSON prompt from a note/section (respecting tone settings + notes-context depth) for the user to paste into an AI tool; the response is imported back in.
+
+**The AI features are entirely copy-paste — the app never calls an LLM API or sends data anywhere.** It builds a structured JSON *prompt* for the user to paste into their own AI assistant, and parses the JSON *response* they paste back. Anthropic policy forbids third-party apps from reusing a Claude subscription login, so there is deliberately no API-key/inference integration (see the `project-claude-ai-integration` memory). Pieces:
+
+- **`aiPrompt.js`** — prompt builders: `buildSectionAIPrompt` (clean up one notes section), `buildCombinedNotesAndTasksAIPrompt` (master notes+tasks), `buildNoteEditAIPrompt` (whole-note AI edit), plus context/master-notes prompts. `MODULE_PROTOCOL` is the shared instruction block for module suggestions.
+- **`aiDelivery.js`** — `aiPromptMode` is `'download'` \| `'clipboard'` (default) \| `'clipboard-open'`. `copyPromptToClipboard` copies the prompt and, in `clipboard-open`, opens `claude.ai/new` via `window.open` (routed to the OS browser by `setWindowOpenHandler`). `clipboard-open` only appears when `settings.enableClaudeAutoOpen` is on (off by default; gated + warned in Settings).
+- **`aiModules.js`** — `sectionsFromModuleSpecs` builds real section objects from AI-supplied specs; it **must mirror `newSection()` in `SectionList.jsx`** and each section's item/data shape. All parsing is defensive (coerce values, drop unknown types) — a malformed pasted reply must never crash the import. `serializeSectionsForEdit` is the inverse (note → specs) for the edit flow.
+- **Module suggestions** (§`NotesSection.handleApply`): the notes prompt asks Claude to offer optional modules as a numbered plain-text list; the final JSON carries a `modules` array that gets appended as new sections via `addSections` (exposed through `SectionContext`).
+- **AI edit** (`AiEditPanel.jsx`): serialises the whole note + a free-text instruction; the returned `{"sections":[…]}` rebuilds all sections (behind a confirm). Rendered in the editor (under the section list) and the Library preview (`NoteViewModal`, targets the viewed mode).
+- **Retry** (`NotesSection`): snapshots the raw transcript + tone at export time so the user can restore and re-run after a response replaced their notes.
+- **Security (mandatory):** all note content rendered as HTML (`RichTextEditor` `innerHTML`, `NoteExportCanvas` `dangerouslySetInnerHTML`) and every AI-import path go through `sanitizeHtml` (DOMPurify, `src/utils/sanitizeHtml.js`) — never render or persist AI-supplied HTML unsanitised (pasted content is untrusted). The `write-file`/`delete-file` IPC handlers reject path traversal (`delete-file` is `.pdf`-only). Known follow-ups not yet done: a strict Content-Security-Policy in `index.html`, and full allowed-root confinement of `write-file` (it currently writes to any user-chosen folder, which the sync/backup features require).
 
 ## Conventions
 
